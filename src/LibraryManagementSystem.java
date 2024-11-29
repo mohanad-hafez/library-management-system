@@ -257,7 +257,7 @@ public class LibraryManagementSystem extends JFrame {
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
-        
+
         // Components for adding books
         JTextField titleField = new JTextField(20);
         JTextField publicationDateField = new JTextField(20);
@@ -266,7 +266,8 @@ public class LibraryManagementSystem extends JFrame {
         JScrollPane authorScrollPane = new JScrollPane(authorList);
         JComboBox<String> authorComboBox = new JComboBox<>();
         JButton addAuthorButton = new JButton("Add Author");
-        
+        JButton removeAuthorButton = new JButton("Remove Author"); 
+
         // Populate author combo box
         try {
             Statement stmt = conn.createStatement();
@@ -277,32 +278,36 @@ public class LibraryManagementSystem extends JFrame {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        
+
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Title:"), gbc);
         gbc.gridx = 1;
         panel.add(titleField, gbc);
-        
+
         gbc.gridx = 0; gbc.gridy = 1;
         panel.add(new JLabel("Authors:"), gbc);
         gbc.gridx = 1;
         panel.add(authorScrollPane, gbc);
-        
+
         gbc.gridx = 0; gbc.gridy = 2;
         panel.add(authorComboBox, gbc);
-        gbc.gridx = 1;
+       
+        gbc.gridx = 1;gbc.gridy = 2;
         panel.add(addAuthorButton, gbc);
-        
-        gbc.gridx = 0; gbc.gridy = 3;
+
+        gbc.gridx = 2; gbc.gridy = 2;
+        panel.add(removeAuthorButton, gbc); 
+
+        gbc.gridx = 0; gbc.gridy = 4;
         panel.add(new JLabel("Publication Date (YYYY-MM-DD):"), gbc);
         gbc.gridx = 1;
         panel.add(publicationDateField, gbc);
-        
+
         JButton addButton = new JButton("Add Book");
-        gbc.gridx = 0; gbc.gridy = 4;
+        gbc.gridx = 0; gbc.gridy = 5;
         gbc.gridwidth = 2;
         panel.add(addButton, gbc);
-        
+
         // Add author button action
         addAuthorButton.addActionListener(e -> {
             String selectedAuthor = (String) authorComboBox.getSelectedItem();
@@ -310,7 +315,15 @@ public class LibraryManagementSystem extends JFrame {
                 authorListModel.addElement(selectedAuthor);
             }
         });
-        
+
+        // Remove author button action
+        removeAuthorButton.addActionListener(e -> {
+            String selectedAuthor = authorList.getSelectedValue();
+            if (selectedAuthor != null) {
+                authorListModel.removeElement(selectedAuthor);
+            }
+        });
+
         // Add book button action
         addButton.addActionListener(e -> {
             try {
@@ -319,25 +332,30 @@ public class LibraryManagementSystem extends JFrame {
                     selectedAuthors.add(authorListModel.getElementAt(i));
                 }
                 if (selectedAuthors.isEmpty()) {
-                    JOptionPane.showMessageDialog(this, "Please select at least one author");
+                    JOptionPane.showMessageDialog(panel, "Please select at least one author");
                     return;
                 }
-                
+
                 // Insert book
                 PreparedStatement bookStmt = conn.prepareStatement(
                     "INSERT INTO Book (Title, Publication_date) VALUES (?, ?)",
                     Statement.RETURN_GENERATED_KEYS
                 );
                 bookStmt.setString(1, titleField.getText());
-                bookStmt.setDate(2, Date.valueOf(publicationDateField.getText()));
+                try {
+                    bookStmt.setDate(2, Date.valueOf(publicationDateField.getText()));
+                } catch (IllegalArgumentException ee) {
+                    JOptionPane.showMessageDialog(panel, "Empty/Incorrect date format.", "Input Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
                 bookStmt.executeUpdate();
-                
+
                 ResultSet bookKeys = bookStmt.getGeneratedKeys();
                 int bookId = -1;
                 if (bookKeys.next()) {
                     bookId = bookKeys.getInt(1);
                 }
-                
+
                 // Link authors and book
                 for (String author : selectedAuthors) {
                     PreparedStatement authorStmt = conn.prepareStatement(
@@ -355,21 +373,22 @@ public class LibraryManagementSystem extends JFrame {
                         wroteStmt.executeUpdate();
                     }
                 }
-                
-                JOptionPane.showMessageDialog(this, "Book added successfully!");
-                
+
+                JOptionPane.showMessageDialog(panel, "Book added successfully!");
+
                 // Clear fields
                 titleField.setText("");
                 publicationDateField.setText("");
                 authorListModel.clear();
-                
+
             } catch (SQLException ex) {
-                JOptionPane.showMessageDialog(this, "Error adding book: " + ex.getMessage());
+                JOptionPane.showMessageDialog(panel, "Error adding book: " + ex.getMessage());
             }
         });
-        
+
         return panel;
     }
+
     
     private JPanel createMemberPanel() {
         JPanel panel = new JPanel(new GridBagLayout());
@@ -845,6 +864,9 @@ public class LibraryManagementSystem extends JFrame {
                 JOptionPane.showMessageDialog(this, "Error adding copy: " + ex.getMessage());
             } catch (NumberFormatException ex) {
                 JOptionPane.showMessageDialog(this, "Invalid book selection format: " + ex.getMessage());
+            }catch(IllegalArgumentException ex) {
+            	JOptionPane.showMessageDialog(panel, "Invalid date format.", "Input Error", JOptionPane.ERROR_MESSAGE);
+                return;
             }
         });
         
@@ -1110,6 +1132,7 @@ public class LibraryManagementSystem extends JFrame {
                         "UPDATE Book SET Title = ?, Publication_date = ? WHERE Book_Id = ?"
                     );
                     stmt.setString(1, titleField.getText());
+                    
                     stmt.setDate(2, Date.valueOf(publicationDateField.getText()));
                     stmt.setInt(3, id);
                     stmt.executeUpdate();
@@ -1121,6 +1144,9 @@ public class LibraryManagementSystem extends JFrame {
             }
         } catch (SQLException ex) {
             JOptionPane.showMessageDialog(this, "Error retrieving book details: " + ex.getMessage());
+        }catch(IllegalArgumentException ee) {
+        	 JOptionPane.showMessageDialog(this, "Error updating: check information integrity", "Input Error", JOptionPane.ERROR_MESSAGE);
+             return;
         }
     }
 
