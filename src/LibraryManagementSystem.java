@@ -1,6 +1,8 @@
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.util.List;
+import java.util.ArrayList;
 import java.sql.*;
 import java.time.LocalDate;
 import java.util.Vector;
@@ -160,8 +162,8 @@ public class LibraryManagementSystem extends JFrame {
                 "CONSTRAINT `fk_Member_Library_card` " +
                 "FOREIGN KEY (`Library_card_Id`) " +
                 "REFERENCES `Library_card` (`Card_Id`) " +
-                "ON DELETE NO ACTION " +
-                "ON UPDATE NO ACTION)" +
+                "ON DELETE CASCADE " + // deleting the card means deleting the member
+                "ON UPDATE CASCADE)" + // updating the card means updating the member
                 "ENGINE = InnoDB",
                 
                 "CREATE TABLE IF NOT EXISTS `Book_copy` (" +
@@ -178,7 +180,7 @@ public class LibraryManagementSystem extends JFrame {
                 "CONSTRAINT `fk_Book_copy_Book1` " +
                 "FOREIGN KEY (`Book_Id`) " +
                 "REFERENCES `Book` (`Book_Id`) " +
-                "ON DELETE CASCADE " + // Delete book copies when a book is deleted
+                "ON DELETE NO ACTION " + // Delete book copies when a book is deleted
                 "ON UPDATE NO ACTION," +
                 "CONSTRAINT `fk_Book_copy_Member1` " +
                 "FOREIGN KEY (`Borrower_Id`) " +
@@ -196,8 +198,8 @@ public class LibraryManagementSystem extends JFrame {
                 "CONSTRAINT `fk_Author_has_Book_Author1` " +
                 "FOREIGN KEY (`Author_Author_Id`) " +
                 "REFERENCES `Author` (`Author_Id`) " +
-                "ON DELETE CASCADE " + // Delete books when an author is deleted
-                "ON UPDATE NO ACTION," +
+                "ON DELETE CASCADE " + // this doesn't delete a book nor an author but just removes the connection between them.
+                "ON UPDATE CASCADE," +
                 "CONSTRAINT `fk_Author_has_Book_Book1` " +
                 "FOREIGN KEY (`Book_Book_Id`) " +
                 "REFERENCES `Book` (`Book_Id`) " +
@@ -233,14 +235,14 @@ public class LibraryManagementSystem extends JFrame {
         JTabbedPane tabbedPane = new JTabbedPane();
         
         // Add tabs
-        tabbedPane.addTab("Book Management", createBookPanel());
-        tabbedPane.addTab("Member Management", createMemberPanel());
-        tabbedPane.addTab("Search", createSearchPanel()); // General search tab
+        tabbedPane.addTab("Add Book", createBookPanel());
+        tabbedPane.addTab("Add Member", createMemberPanel());
+        tabbedPane.addTab("Add Author", createAuthorPanel());
         tabbedPane.addTab("Borrow Book", createBorrowPanel());
         tabbedPane.addTab("Add Copy", createCopyPanel());
-        tabbedPane.addTab("Borrowed Books", createBorrowedBooksPanel()); // New tab
-        tabbedPane.addTab("Add Author", createAuthorPanel()); // New tab
-        tabbedPane.addTab("Update/Delete", createUpdateDeletePanel()); // New tab
+        tabbedPane.addTab("Borrowed Books", createBorrowedBooksPanel());
+        tabbedPane.addTab("Search", createSearchPanel());
+        tabbedPane.addTab("Update/Delete", createUpdateDeletePanel());
         
         add(tabbedPane);
 
@@ -259,6 +261,22 @@ public class LibraryManagementSystem extends JFrame {
         // Components for adding books
         JTextField titleField = new JTextField(20);
         JTextField publicationDateField = new JTextField(20);
+        DefaultListModel<String> authorListModel = new DefaultListModel<>();
+        JList<String> authorList = new JList<>(authorListModel);
+        JScrollPane authorScrollPane = new JScrollPane(authorList);
+        JComboBox<String> authorComboBox = new JComboBox<>();
+        JButton addAuthorButton = new JButton("Add Author");
+        
+        // Populate author combo box
+        try {
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT CONCAT(First_name, ' ', Last_name) AS FullName FROM Author");
+            while (rs.next()) {
+                authorComboBox.addItem(rs.getString("FullName"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Title:"), gbc);
@@ -266,37 +284,44 @@ public class LibraryManagementSystem extends JFrame {
         panel.add(titleField, gbc);
         
         gbc.gridx = 0; gbc.gridy = 1;
-        panel.add(new JLabel("Author:"), gbc);
+        panel.add(new JLabel("Authors:"), gbc);
         gbc.gridx = 1;
-        panel.add(authorCombo, gbc);
+        panel.add(authorScrollPane, gbc);
         
         gbc.gridx = 0; gbc.gridy = 2;
+        panel.add(authorComboBox, gbc);
+        gbc.gridx = 1;
+        panel.add(addAuthorButton, gbc);
+        
+        gbc.gridx = 0; gbc.gridy = 3;
         panel.add(new JLabel("Publication Date (YYYY-MM-DD):"), gbc);
         gbc.gridx = 1;
         panel.add(publicationDateField, gbc);
         
         JButton addButton = new JButton("Add Book");
-        gbc.gridx = 0; gbc.gridy = 3;
+        gbc.gridx = 0; gbc.gridy = 4;
         gbc.gridwidth = 2;
         panel.add(addButton, gbc);
+        
+        // Add author button action
+        addAuthorButton.addActionListener(e -> {
+            String selectedAuthor = (String) authorComboBox.getSelectedItem();
+            if (selectedAuthor != null && !authorListModel.contains(selectedAuthor)) {
+                authorListModel.addElement(selectedAuthor);
+            }
+        });
         
         // Add book button action
         addButton.addActionListener(e -> {
             try {
-                String authorSelection = (String) authorCombo.getSelectedItem();
-                if (authorSelection == null) {
-                    JOptionPane.showMessageDialog(this, "Please select an author");
+                List<String> selectedAuthors = new ArrayList<>();
+                for (int i = 0; i < authorListModel.size(); i++) {
+                    selectedAuthors.add(authorListModel.getElementAt(i));
+                }
+                if (selectedAuthors.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "Please select at least one author");
                     return;
                 }
-                
-                // Get author ID
-                PreparedStatement authorStmt = conn.prepareStatement(
-                    "SELECT Author_Id FROM Author WHERE CONCAT(First_name, ' ', Last_name) = ?"
-                );
-                authorStmt.setString(1, authorSelection);
-                ResultSet authorRs = authorStmt.executeQuery();
-                authorRs.next();
-                int authorId = authorRs.getInt("Author_Id");
                 
                 // Insert book
                 PreparedStatement bookStmt = conn.prepareStatement(
@@ -313,14 +338,22 @@ public class LibraryManagementSystem extends JFrame {
                     bookId = bookKeys.getInt(1);
                 }
                 
-                // Link author and book
-                if (authorId != -1 && bookId != -1) {
-                    PreparedStatement wroteStmt = conn.prepareStatement(
-                        "INSERT INTO WROTE (Author_Author_Id, Book_Book_Id) VALUES (?, ?)"
+                // Link authors and book
+                for (String author : selectedAuthors) {
+                    PreparedStatement authorStmt = conn.prepareStatement(
+                        "SELECT Author_Id FROM Author WHERE CONCAT(First_name, ' ', Last_name) = ?"
                     );
-                    wroteStmt.setInt(1, authorId);
-                    wroteStmt.setInt(2, bookId);
-                    wroteStmt.executeUpdate();
+                    authorStmt.setString(1, author);
+                    ResultSet authorRs = authorStmt.executeQuery();
+                    if (authorRs.next()) {
+                        int authorId = authorRs.getInt("Author_Id");
+                        PreparedStatement wroteStmt = conn.prepareStatement(
+                            "INSERT INTO WROTE (Author_Author_Id, Book_Book_Id) VALUES (?, ?)"
+                        );
+                        wroteStmt.setInt(1, authorId);
+                        wroteStmt.setInt(2, bookId);
+                        wroteStmt.executeUpdate();
+                    }
                 }
                 
                 JOptionPane.showMessageDialog(this, "Book added successfully!");
@@ -328,6 +361,7 @@ public class LibraryManagementSystem extends JFrame {
                 // Clear fields
                 titleField.setText("");
                 publicationDateField.setText("");
+                authorListModel.clear();
                 
             } catch (SQLException ex) {
                 JOptionPane.showMessageDialog(this, "Error adding book: " + ex.getMessage());
@@ -468,9 +502,9 @@ public class LibraryManagementSystem extends JFrame {
                 String selectedAttribute = (String) attributeCombo.getSelectedItem();
                 String query;
                 if ("Book".equals(selectedEntity)) {
-                    tableModel.setColumnIdentifiers(new String[]{"Book ID", "Title", "Author", "Publication Date", "Total Copies", "Available Copies"});
+                    tableModel.setColumnIdentifiers(new String[]{"Book ID", "Title", "Authors", "Publication Date", "Total Copies", "Available Copies"});
                     if ("Title".equals(selectedAttribute)) {
-                        query = "SELECT b.Book_Id, b.Title, a.First_name, a.Last_name, b.Publication_date, " +
+                        query = "SELECT b.Book_Id, b.Title, GROUP_CONCAT(CONCAT(a.First_name, ' ', a.Last_name) SEPARATOR ', ') AS Authors, b.Publication_date, " +
                                 "COUNT(bc.Copy_Id) as total_copies, " +
                                 "SUM(CASE WHEN bc.Status = 'AVAILABLE' THEN 1 ELSE 0 END) as available_copies " +
                                 "FROM Book b " +
@@ -480,7 +514,7 @@ public class LibraryManagementSystem extends JFrame {
                                 "WHERE b.Title LIKE ? " +
                                 "GROUP BY b.Book_Id";
                     } else if ("Author".equals(selectedAttribute)) {
-                        query = "SELECT b.Book_Id, b.Title, a.First_name, a.Last_name, b.Publication_date, " +
+                        query = "SELECT b.Book_Id, b.Title, GROUP_CONCAT(CONCAT(a.First_name, ' ', a.Last_name) SEPARATOR ', ') AS Authors, b.Publication_date, " +
                                 "COUNT(bc.Copy_Id) as total_copies, " +
                                 "SUM(CASE WHEN bc.Status = 'AVAILABLE' THEN 1 ELSE 0 END) as available_copies " +
                                 "FROM Book b " +
@@ -490,7 +524,7 @@ public class LibraryManagementSystem extends JFrame {
                                 "WHERE a.First_name LIKE ? OR a.Last_name LIKE ? " +
                                 "GROUP BY b.Book_Id";
                     } else {
-                        query = "SELECT b.Book_Id, b.Title, a.First_name, a.Last_name, b.Publication_date, " +
+                        query = "SELECT b.Book_Id, b.Title, GROUP_CONCAT(CONCAT(a.First_name, ' ', a.Last_name) SEPARATOR ', ') AS Authors, b.Publication_date, " +
                                 "COUNT(bc.Copy_Id) as total_copies, " +
                                 "SUM(CASE WHEN bc.Status = 'AVAILABLE' THEN 1 ELSE 0 END) as available_copies " +
                                 "FROM Book b " +
@@ -563,11 +597,11 @@ public class LibraryManagementSystem extends JFrame {
                     if ("Book".equals(selectedEntity)) {
                         int bookId = rs.getInt("Book_Id");
                         String title = rs.getString("Title");
-                        String author = rs.getString("First_name") + " " + rs.getString("Last_name");
+                        String authors = rs.getString("Authors");
                         Date publicationDate = rs.getDate("Publication_date");
                         int totalCopies = rs.getInt("total_copies");
                         int availableCopies = rs.getInt("available_copies");
-                        tableModel.addRow(new Object[]{bookId, title, author, publicationDate, totalCopies, availableCopies});
+                        tableModel.addRow(new Object[]{bookId, title, authors, publicationDate, totalCopies, availableCopies});
                     } else if ("Author".equals(selectedEntity)) {
                         int authorId = rs.getInt("Author_Id");
                         String firstName = rs.getString("First_name");
@@ -1166,12 +1200,14 @@ public class LibraryManagementSystem extends JFrame {
                 return;
             }
 
-            PreparedStatement stmt = conn.prepareStatement(
-                "DELETE FROM Member WHERE Member_Id = ?"
+            // Delete the library card associated with the member
+            PreparedStatement cardStmt = conn.prepareStatement(
+                "DELETE FROM Library_card WHERE Card_Id = (SELECT Library_card_Id FROM Member WHERE Member_Id = ?)"
             );
-            stmt.setInt(1, id);
-            stmt.executeUpdate();
-            JOptionPane.showMessageDialog(this, "Member deleted successfully!");
+            cardStmt.setInt(1, id);
+            cardStmt.executeUpdate();
+
+            JOptionPane.showMessageDialog(this, "Member and associated library card deleted successfully!");
             refreshComboBoxes();
         } catch (SQLException ex) {
             JOptionPane.showMessageDialog(this, "Error deleting member: " + ex.getMessage());
