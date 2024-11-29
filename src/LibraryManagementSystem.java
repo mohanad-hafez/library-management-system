@@ -779,9 +779,9 @@ public class LibraryManagementSystem extends JFrame {
         refreshComboBoxes();
         try {
             Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT Title FROM Book");
+            ResultSet rs = stmt.executeQuery("SELECT Book_Id, Title FROM Book");
             while (rs.next()) {
-                bookCombo.addItem(rs.getString("Title"));
+                bookCombo.addItem(rs.getInt("Book_Id") + " - " + rs.getString("Title"));
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -825,6 +825,8 @@ public class LibraryManagementSystem extends JFrame {
                 
             } catch (SQLException ex) {
                 JOptionPane.showMessageDialog(this, "Error adding copy: " + ex.getMessage());
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this, "Invalid book selection format: " + ex.getMessage());
             }
         });
         
