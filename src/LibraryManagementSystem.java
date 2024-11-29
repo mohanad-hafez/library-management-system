@@ -409,6 +409,24 @@ public class LibraryManagementSystem extends JFrame {
         
         addButton.addActionListener(e -> {
             try {
+                    // Validate input fields
+                    if (firstNameField.getText().trim().isEmpty()) {
+                        JOptionPane.showMessageDialog(panel, "First Name cannot be empty!", "Input Error", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+                    if (lastNameField.getText().trim().isEmpty()) {
+                        JOptionPane.showMessageDialog(panel, "Last Name cannot be empty!", "Input Error", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+                    if (emailField.getText().trim().isEmpty()) {
+                        JOptionPane.showMessageDialog(panel, "Email cannot be empty!", "Input Error", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+                    if (phoneField.getText().trim().isEmpty()) {
+                        JOptionPane.showMessageDialog(panel, "Phone cannot be empty!", "Input Error", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+                    
                 // Create library card
                 PreparedStatement cardStmt = conn.prepareStatement(
                     "INSERT INTO Library_card (Issue_date, Expiry_date) VALUES (?, ?)",
@@ -866,6 +884,17 @@ public class LibraryManagementSystem extends JFrame {
         // Add author button action
         addButton.addActionListener(e -> {
             try {
+            	
+            	
+            	if (firstNameField.getText().trim().isEmpty()) {
+                    JOptionPane.showMessageDialog(panel, "First Name cannot be empty!", "Input Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            	if (lastNameField.getText().trim().isEmpty()) {
+                    JOptionPane.showMessageDialog(panel, "Last Name cannot be empty!", "Input Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            	
                 // Insert author
                 PreparedStatement authorStmt = conn.prepareStatement(
                     "INSERT INTO Author (First_name, Last_name, Bio) VALUES (?, ?, ?)"
@@ -921,34 +950,46 @@ public class LibraryManagementSystem extends JFrame {
         
         updateButton.addActionListener(e -> {
             String entity = (String) entityCombo.getSelectedItem();
-            int id = Integer.parseInt(idField.getText());
-            switch (entity) {
-                case "Author":
-                    updateAuthor(id);
-                    break;
-                case "Book":
-                    updateBook(id);
-                    break;
-                case "Member":
-                    updateMember(id);
-                    break;
+            try {
+            	int id = Integer.parseInt(idField.getText());
+            	 switch (entity) {
+                 case "Author":
+                     updateAuthor(id);
+                     break;
+                 case "Book":
+                     updateBook(id);
+                     break;
+                 case "Member":
+                     updateMember(id);
+                     break;
+             }
+            }catch(NumberFormatException ee) {
+            	 JOptionPane.showMessageDialog(panel, "Please Enter number.", "Input Error", JOptionPane.ERROR_MESSAGE);
+                 return;
             }
+            
         });
         
         deleteButton.addActionListener(e -> {
             String entity = (String) entityCombo.getSelectedItem();
-            int id = Integer.parseInt(idField.getText());
-            switch (entity) {
-                case "Author":
-                    deleteAuthor(id);
-                    break;
-                case "Book":
-                    deleteBook(id);
-                    break;
-                case "Member":
-                    deleteMember(id);
-                    break;
+            try {
+            	 int id = Integer.parseInt(idField.getText());
+                 switch (entity) {
+                     case "Author":
+                         deleteAuthor(id);
+                         break;
+                     case "Book":
+                         deleteBook(id);
+                         break;
+                     case "Member":
+                         deleteMember(id);
+                         break;
+                 }
+            }catch(NumberFormatException ee) {
+            	JOptionPane.showMessageDialog(panel, "Please Enter number.", "Input Error", JOptionPane.ERROR_MESSAGE);
+                return;
             }
+           
         });
         
         return panel;
@@ -956,265 +997,358 @@ public class LibraryManagementSystem extends JFrame {
     
     private void updateAuthor(int id) {
         try {
+            // Check if the author exists
             PreparedStatement checkStmt = conn.prepareStatement(
-                "SELECT COUNT(*) FROM Author WHERE Author_Id = ?"
+                "SELECT First_name, Last_name, Bio FROM Author WHERE Author_Id = ?"
             );
             checkStmt.setInt(1, id);
             ResultSet rs = checkStmt.executeQuery();
-            rs.next();
-            if (rs.getInt(1) == 0) {
+            
+            if (!rs.next()) {
                 JOptionPane.showMessageDialog(this, "Author not found!");
                 return;
             }
-        } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "Error checking author: " + ex.getMessage());
-            return;
-        }
+            
+            // Retrieve current data for the author
+            String currentFirstName = rs.getString("First_name");
+            String currentLastName = rs.getString("Last_name");
+            String currentBio = rs.getString("Bio");
 
-        JTextField firstNameField = new JTextField(20);
-        JTextField lastNameField = new JTextField(20);
-        JTextArea bioArea = new JTextArea(3, 20);
-        
-        JPanel panel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        
-        gbc.gridx = 0; gbc.gridy = 0;
-        panel.add(new JLabel("First Name:"), gbc);
-        gbc.gridx = 1;
-        panel.add(firstNameField, gbc);
-        
-        gbc.gridx = 0; gbc.gridy = 1;
-        panel.add(new JLabel("Last Name:"), gbc);
-        gbc.gridx = 1;
-        panel.add(lastNameField, gbc);
-        
-        gbc.gridx = 0; gbc.gridy = 2;
-        panel.add(new JLabel("Bio:"), gbc);
-        gbc.gridx = 1;
-        panel.add(new JScrollPane(bioArea), gbc);
-        
-        int result = JOptionPane.showConfirmDialog(this, panel, "Update Author", JOptionPane.OK_CANCEL_OPTION);
-        if (result == JOptionPane.OK_OPTION) {
-            try {
-                PreparedStatement stmt = conn.prepareStatement(
-                    "UPDATE Author SET First_name = ?, Last_name = ?, Bio = ? WHERE Author_Id = ?"
-                );
-                stmt.setString(1, firstNameField.getText());
-                stmt.setString(2, lastNameField.getText());
-                stmt.setString(3, bioArea.getText());
-                stmt.setInt(4, id);
-                stmt.executeUpdate();
-                JOptionPane.showMessageDialog(this, "Author updated successfully!");
-                refreshComboBoxes();
-            } catch (SQLException ex) {
-                JOptionPane.showMessageDialog(this, "Error updating author: " + ex.getMessage());
+            // Input fields pre-filled with current data
+            JTextField firstNameField = new JTextField(currentFirstName, 20);
+            JTextField lastNameField = new JTextField(currentLastName, 20);
+            JTextArea bioArea = new JTextArea(currentBio, 3, 20);
+
+            // Set up the panel for input
+            JPanel panel = new JPanel(new GridBagLayout());
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.insets = new Insets(5, 5, 5, 5);
+            
+            gbc.gridx = 0; gbc.gridy = 0;
+            panel.add(new JLabel("First Name:"), gbc);
+            gbc.gridx = 1;
+            panel.add(firstNameField, gbc);
+            
+            gbc.gridx = 0; gbc.gridy = 1;
+            panel.add(new JLabel("Last Name:"), gbc);
+            gbc.gridx = 1;
+            panel.add(lastNameField, gbc);
+            
+            gbc.gridx = 0; gbc.gridy = 2;
+            panel.add(new JLabel("Bio:"), gbc);
+            gbc.gridx = 1;
+            panel.add(new JScrollPane(bioArea), gbc);
+            
+            // Show dialog
+            int result = JOptionPane.showConfirmDialog(this, panel, "Update Author", JOptionPane.OK_CANCEL_OPTION);
+            if (result == JOptionPane.OK_OPTION) {
+                try {
+                    // Update the author with new values
+                    PreparedStatement stmt = conn.prepareStatement(
+                        "UPDATE Author SET First_name = ?, Last_name = ?, Bio = ? WHERE Author_Id = ?"
+                    );
+                    stmt.setString(1, firstNameField.getText());
+                    stmt.setString(2, lastNameField.getText());
+                    stmt.setString(3, bioArea.getText());
+                    stmt.setInt(4, id);
+                    stmt.executeUpdate();
+                    JOptionPane.showMessageDialog(this, "Author updated successfully!");
+                    refreshComboBoxes();
+                } catch (SQLException ex) {
+                    JOptionPane.showMessageDialog(this, "Error updating author: " + ex.getMessage());
+                }
             }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Error retrieving author details: " + ex.getMessage());
         }
     }
+
     
     private void updateBook(int id) {
         try {
+            // Check if the book exists
             PreparedStatement checkStmt = conn.prepareStatement(
-                "SELECT COUNT(*) FROM Book WHERE Book_Id = ?"
+                "SELECT Title, Publication_date FROM Book WHERE Book_Id = ?"
             );
             checkStmt.setInt(1, id);
             ResultSet rs = checkStmt.executeQuery();
-            rs.next();
-            if (rs.getInt(1) == 0) {
+            
+            if (!rs.next()) {
                 JOptionPane.showMessageDialog(this, "Book not found!");
                 return;
             }
-        } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "Error checking book: " + ex.getMessage());
-            return;
-        }
 
-        JTextField titleField = new JTextField(20);
-        JTextField publicationDateField = new JTextField(20);
-        
-        JPanel panel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        
-        gbc.gridx = 0; gbc.gridy = 0;
-        panel.add(new JLabel("Title:"), gbc);
-        gbc.gridx = 1;
-        panel.add(titleField, gbc);
-        
-        gbc.gridx = 0; gbc.gridy = 1;
-        panel.add(new JLabel("Publication Date (YYYY-MM-DD):"), gbc);
-        gbc.gridx = 1;
-        panel.add(publicationDateField, gbc);
-        
-        int result = JOptionPane.showConfirmDialog(this, panel, "Update Book", JOptionPane.OK_CANCEL_OPTION);
-        if (result == JOptionPane.OK_OPTION) {
-            try {
-                PreparedStatement stmt = conn.prepareStatement(
-                    "UPDATE Book SET Title = ?, Publication_date = ? WHERE Book_Id = ?"
-                );
-                stmt.setString(1, titleField.getText());
-                stmt.setDate(2, Date.valueOf(publicationDateField.getText()));
-                stmt.setInt(3, id);
-                stmt.executeUpdate();
-                JOptionPane.showMessageDialog(this, "Book updated successfully!");
-                refreshComboBoxes();
-            } catch (SQLException ex) {
-                JOptionPane.showMessageDialog(this, "Error updating book: " + ex.getMessage());
+            // Retrieve current data for the book
+            String currentTitle = rs.getString("Title");
+            String currentPublicationDate = rs.getDate("Publication_date").toString();
+
+            // Input fields pre-filled with current data
+            JTextField titleField = new JTextField(currentTitle, 20);
+            JTextField publicationDateField = new JTextField(currentPublicationDate, 20);
+
+            // Set up the panel for input
+            JPanel panel = new JPanel(new GridBagLayout());
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.insets = new Insets(5, 5, 5, 5);
+            
+            gbc.gridx = 0; gbc.gridy = 0;
+            panel.add(new JLabel("Title:"), gbc);
+            gbc.gridx = 1;
+            panel.add(titleField, gbc);
+            
+            gbc.gridx = 0; gbc.gridy = 1;
+            panel.add(new JLabel("Publication Date (YYYY-MM-DD):"), gbc);
+            gbc.gridx = 1;
+            panel.add(publicationDateField, gbc);
+
+            // Show dialog
+            int result = JOptionPane.showConfirmDialog(this, panel, "Update Book", JOptionPane.OK_CANCEL_OPTION);
+            if (result == JOptionPane.OK_OPTION) {
+                try {
+                    // Update the book with new values
+                    PreparedStatement stmt = conn.prepareStatement(
+                        "UPDATE Book SET Title = ?, Publication_date = ? WHERE Book_Id = ?"
+                    );
+                    stmt.setString(1, titleField.getText());
+                    stmt.setDate(2, Date.valueOf(publicationDateField.getText()));
+                    stmt.setInt(3, id);
+                    stmt.executeUpdate();
+                    JOptionPane.showMessageDialog(this, "Book updated successfully!");
+                    refreshComboBoxes();
+                } catch (SQLException ex) {
+                    JOptionPane.showMessageDialog(this, "Error updating book: " + ex.getMessage());
+                }
             }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Error retrieving book details: " + ex.getMessage());
         }
     }
+
     
     private void updateMember(int id) {
         try {
+            // Check if the member exists and retrieve current details
             PreparedStatement checkStmt = conn.prepareStatement(
-                "SELECT COUNT(*) FROM Member WHERE Member_Id = ?"
+                "SELECT First_name, Last_name, Email, Phone_number FROM Member WHERE Member_Id = ?"
             );
             checkStmt.setInt(1, id);
             ResultSet rs = checkStmt.executeQuery();
-            rs.next();
-            if (rs.getInt(1) == 0) {
+
+            if (!rs.next()) {
                 JOptionPane.showMessageDialog(this, "Member not found!");
                 return;
             }
-        } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "Error checking member: " + ex.getMessage());
-            return;
-        }
 
-        JTextField firstNameField = new JTextField(20);
-        JTextField lastNameField = new JTextField(20);
-        JTextField emailField = new JTextField(20);
-        JTextField phoneField = new JTextField(20);
-        
-        JPanel panel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        
-        gbc.gridx = 0; gbc.gridy = 0;
-        panel.add(new JLabel("First Name:"), gbc);
-        gbc.gridx = 1;
-        panel.add(firstNameField, gbc);
-        
-        gbc.gridx = 0; gbc.gridy = 1;
-        panel.add(new JLabel("Last Name:"), gbc);
-        gbc.gridx = 1;
-        panel.add(lastNameField, gbc);
-        
-        gbc.gridx = 0; gbc.gridy = 2;
-        panel.add(new JLabel("Email:"), gbc);
-        gbc.gridx = 1;
-        panel.add(emailField, gbc);
-        
-        gbc.gridx = 0; gbc.gridy = 3;
-        panel.add(new JLabel("Phone:"), gbc);
-        gbc.gridx = 1;
-        panel.add(phoneField, gbc);
-        
-        int result = JOptionPane.showConfirmDialog(this, panel, "Update Member", JOptionPane.OK_CANCEL_OPTION);
-        if (result == JOptionPane.OK_OPTION) {
-            try {
-                PreparedStatement stmt = conn.prepareStatement(
-                    "UPDATE Member SET First_name = ?, Last_name = ?, Email = ?, Phone_number = ? WHERE Member_Id = ?"
-                );
-                stmt.setString(1, firstNameField.getText());
-                stmt.setString(2, lastNameField.getText());
-                stmt.setString(3, emailField.getText());
-                stmt.setString(4, phoneField.getText());
-                stmt.setInt(5, id);
-                stmt.executeUpdate();
-                JOptionPane.showMessageDialog(this, "Member updated successfully!");
-                refreshComboBoxes();
-            } catch (SQLException ex) {
-                JOptionPane.showMessageDialog(this, "Error updating member: " + ex.getMessage());
+            // Retrieve current details of the member
+            String currentFirstName = rs.getString("First_name");
+            String currentLastName = rs.getString("Last_name");
+            String currentEmail = rs.getString("Email");
+            String currentPhone = rs.getString("Phone_number");
+
+            // Input fields pre-filled with current data
+            JTextField firstNameField = new JTextField(currentFirstName, 20);
+            JTextField lastNameField = new JTextField(currentLastName, 20);
+            JTextField emailField = new JTextField(currentEmail, 20);
+            JTextField phoneField = new JTextField(currentPhone, 20);
+
+            // Set up the panel for input
+            JPanel panel = new JPanel(new GridBagLayout());
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.insets = new Insets(5, 5, 5, 5);
+
+            gbc.gridx = 0; gbc.gridy = 0;
+            panel.add(new JLabel("First Name:"), gbc);
+            gbc.gridx = 1;
+            panel.add(firstNameField, gbc);
+
+            gbc.gridx = 0; gbc.gridy = 1;
+            panel.add(new JLabel("Last Name:"), gbc);
+            gbc.gridx = 1;
+            panel.add(lastNameField, gbc);
+
+            gbc.gridx = 0; gbc.gridy = 2;
+            panel.add(new JLabel("Email:"), gbc);
+            gbc.gridx = 1;
+            panel.add(emailField, gbc);
+
+            gbc.gridx = 0; gbc.gridy = 3;
+            panel.add(new JLabel("Phone:"), gbc);
+            gbc.gridx = 1;
+            panel.add(phoneField, gbc);
+
+            // Show dialog
+            int result = JOptionPane.showConfirmDialog(this, panel, "Update Member", JOptionPane.OK_CANCEL_OPTION);
+            if (result == JOptionPane.OK_OPTION) {
+                try {
+                    // Update the member with new values
+                    PreparedStatement stmt = conn.prepareStatement(
+                        "UPDATE Member SET First_name = ?, Last_name = ?, Email = ?, Phone_number = ? WHERE Member_Id = ?"
+                    );
+                    stmt.setString(1, firstNameField.getText());
+                    stmt.setString(2, lastNameField.getText());
+                    stmt.setString(3, emailField.getText());
+                    stmt.setString(4, phoneField.getText());
+                    stmt.setInt(5, id);
+                    stmt.executeUpdate();
+
+                    JOptionPane.showMessageDialog(this, "Member updated successfully!");
+                    refreshComboBoxes();
+                } catch (SQLException ex) {
+                    JOptionPane.showMessageDialog(this, "Error updating member: " + ex.getMessage());
+                }
             }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Error retrieving member details: " + ex.getMessage());
         }
     }
+
     
     private void deleteAuthor(int id) {
         try {
+            // Check if the author exists and retrieve details
             PreparedStatement checkStmt = conn.prepareStatement(
-                "SELECT COUNT(*) FROM Author WHERE Author_Id = ?"
+                "SELECT First_name, Last_name FROM Author WHERE Author_Id = ?"
             );
             checkStmt.setInt(1, id);
             ResultSet rs = checkStmt.executeQuery();
-            rs.next();
-            if (rs.getInt(1) == 0) {
+
+            if (!rs.next()) {
                 JOptionPane.showMessageDialog(this, "Author not found!");
                 return;
             }
 
-            PreparedStatement stmt = conn.prepareStatement(
-                "DELETE FROM Author WHERE Author_Id = ?"
+            // Retrieve current details of the author
+            String firstName = rs.getString("First_name");
+            String lastName = rs.getString("Last_name");
+
+            // Show confirmation dialog
+            int result = JOptionPane.showConfirmDialog(
+                this,
+                "Are you sure you want to delete the author: \n" +
+                "Name: " + firstName + " " + lastName,
+                "Confirm Delete",
+                JOptionPane.YES_NO_OPTION
             );
-            stmt.setInt(1, id);
-            stmt.executeUpdate();
-            JOptionPane.showMessageDialog(this, "Author deleted successfully!");
-            refreshComboBoxes();
+
+            if (result == JOptionPane.YES_OPTION) {
+                // Proceed with deletion
+                PreparedStatement stmt = conn.prepareStatement(
+                    "DELETE FROM Author WHERE Author_Id = ?"
+                );
+                stmt.setInt(1, id);
+                stmt.executeUpdate();
+                JOptionPane.showMessageDialog(this, "Author deleted successfully!");
+                refreshComboBoxes();
+            }
         } catch (SQLException ex) {
             JOptionPane.showMessageDialog(this, "Error deleting author: " + ex.getMessage());
         }
     }
+
     
     private void deleteBook(int id) {
         try {
+            // Check if the book exists and retrieve details
             PreparedStatement checkStmt = conn.prepareStatement(
-                "SELECT COUNT(*) FROM Book WHERE Book_Id = ?"
+                "SELECT Title, Publication_date FROM Book WHERE Book_Id = ?"
             );
             checkStmt.setInt(1, id);
             ResultSet rs = checkStmt.executeQuery();
-            rs.next();
-            if (rs.getInt(1) == 0) {
+
+            if (!rs.next()) {
                 JOptionPane.showMessageDialog(this, "Book not found!");
                 return;
             }
 
-            // Delete related entries in the WROTE table
-            PreparedStatement deleteWroteStmt = conn.prepareStatement(
-                "DELETE FROM WROTE WHERE Book_Book_Id = ?"
-            );
-            deleteWroteStmt.setInt(1, id);
-            deleteWroteStmt.executeUpdate();
+            // Retrieve current details of the book
+            String title = rs.getString("Title");
+            String publicationDate = rs.getDate("Publication_date").toString();
 
-            // Delete the book
-            PreparedStatement stmt = conn.prepareStatement(
-                "DELETE FROM Book WHERE Book_Id = ?"
+            // Show confirmation dialog
+            int result = JOptionPane.showConfirmDialog(
+                this,
+                "Are you sure you want to delete the book: \n" +
+                "Title: " + title + "\nPublication Date: " + publicationDate,
+                "Confirm Delete",
+                JOptionPane.YES_NO_OPTION
             );
-            stmt.setInt(1, id);
-            stmt.executeUpdate();
-            JOptionPane.showMessageDialog(this, "Book deleted successfully!");
-            refreshComboBoxes();
+
+            if (result == JOptionPane.YES_OPTION) {
+                // Delete related entries in the WROTE table
+                PreparedStatement deleteWroteStmt = conn.prepareStatement(
+                    "DELETE FROM WROTE WHERE Book_Book_Id = ?"
+                );
+                deleteWroteStmt.setInt(1, id);
+                deleteWroteStmt.executeUpdate();
+
+                // Delete the book
+                PreparedStatement stmt = conn.prepareStatement(
+                    "DELETE FROM Book WHERE Book_Id = ?"
+                );
+                stmt.setInt(1, id);
+                stmt.executeUpdate();
+                JOptionPane.showMessageDialog(this, "Book deleted successfully!");
+                refreshComboBoxes();
+            }
         } catch (SQLException ex) {
             JOptionPane.showMessageDialog(this, "Error deleting book: " + ex.getMessage());
         }
     }
+
     
     private void deleteMember(int id) {
         try {
+            // Check if the member exists and retrieve details
             PreparedStatement checkStmt = conn.prepareStatement(
-                "SELECT COUNT(*) FROM Member WHERE Member_Id = ?"
+                "SELECT First_name, Last_name, Email, Phone_number FROM Member WHERE Member_Id = ?"
             );
             checkStmt.setInt(1, id);
             ResultSet rs = checkStmt.executeQuery();
-            rs.next();
-            if (rs.getInt(1) == 0) {
+
+            if (!rs.next()) {
                 JOptionPane.showMessageDialog(this, "Member not found!");
                 return;
             }
 
-            // Delete the library card associated with the member
-            PreparedStatement cardStmt = conn.prepareStatement(
-                "DELETE FROM Library_card WHERE Card_Id = (SELECT Library_card_Id FROM Member WHERE Member_Id = ?)"
-            );
-            cardStmt.setInt(1, id);
-            cardStmt.executeUpdate();
+            // Retrieve current details of the member
+            String firstName = rs.getString("First_name");
+            String lastName = rs.getString("Last_name");
+            String email = rs.getString("Email");
+            String phone = rs.getString("Phone_number");
 
-            JOptionPane.showMessageDialog(this, "Member and associated library card deleted successfully!");
-            refreshComboBoxes();
+            // Show confirmation dialog
+            int result = JOptionPane.showConfirmDialog(
+                this,
+                "Are you sure you want to delete the member: \n" +
+                "Name: " + firstName + " " + lastName + "\n" +
+                "Email: " + email + "\nPhone: " + phone,
+                "Confirm Delete",
+                JOptionPane.YES_NO_OPTION
+            );
+
+            if (result == JOptionPane.YES_OPTION) {
+                // Delete the library card associated with the member
+                PreparedStatement cardStmt = conn.prepareStatement(
+                    "DELETE FROM Library_card WHERE Card_Id = (SELECT Library_card_Id FROM Member WHERE Member_Id = ?)"
+                );
+                cardStmt.setInt(1, id);
+                cardStmt.executeUpdate();
+
+                // Delete the member
+                PreparedStatement memberStmt = conn.prepareStatement(
+                    "DELETE FROM Member WHERE Member_Id = ?"
+                );
+                memberStmt.setInt(1, id);
+                memberStmt.executeUpdate();
+
+                JOptionPane.showMessageDialog(this, "Member and associated library card deleted successfully!");
+                refreshComboBoxes();
+            }
         } catch (SQLException ex) {
             JOptionPane.showMessageDialog(this, "Error deleting member: " + ex.getMessage());
         }
     }
+
     
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
