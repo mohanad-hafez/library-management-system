@@ -745,9 +745,9 @@ public class LibraryManagementSystem extends JFrame {
         refreshComboBoxes();
         try {
             Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT Book_Id, Title FROM Book");
+            ResultSet rs = stmt.executeQuery("SELECT Title FROM Book");
             while (rs.next()) {
-                bookCombo.addItem(rs.getInt("Book_Id") + " - " + rs.getString("Title"));
+                bookCombo.addItem(rs.getString("Title"));
             }
         } catch (SQLException e) {
             e.printStackTrace();
