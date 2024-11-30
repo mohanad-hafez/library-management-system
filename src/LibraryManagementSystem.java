@@ -41,13 +41,14 @@ public class LibraryManagementSystem extends JFrame {
                 memberCombo.addItem(rs.getString("First_name") + " " + rs.getString("Last_name"));
             }
 
-            // Refresh book combo box
+            // Refresh book combo box for borrowing - show only books with available copies
             bookCombo.removeAllItems();
             rs = stmt.executeQuery(
-                "SELECT Book_Id, Title FROM Book"
+                "SELECT b.Book_Id, b.Title FROM Book b "
             );
             while (rs.next()) {
-                bookCombo.addItem(rs.getInt("Book_Id") + " - " + rs.getString("Title"));
+                //System.out.println("inserting "+rs.getString("Title"));
+                bookCombo.addItem(rs.getString("Book_Id") + " - " + rs.getString("Title"));
             }
 
             // Refresh book copy combo box
@@ -666,8 +667,8 @@ public class LibraryManagementSystem extends JFrame {
         gbc.insets = new Insets(5, 5, 5, 5);
         
         // Initialize combo boxes
-        // memberCombo = new JComboBox<>();
-        // bookCombo = new JComboBox<>();
+        memberCombo = new JComboBox<>();
+        bookCombo = new JComboBox<>();
         refreshComboBoxes();
         
         gbc.gridx = 0; gbc.gridy = 0;
@@ -777,7 +778,7 @@ public class LibraryManagementSystem extends JFrame {
         gbc.insets = new Insets(5, 5, 5, 5);
         
         JTextField printDateField = new JTextField(20);
-        
+        refreshComboBoxes();
         // Populate book combo box
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Select Book:"), gbc);
