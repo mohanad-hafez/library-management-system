@@ -12,13 +12,23 @@ public class LibraryManagementSystem extends JFrame {
     private Connection conn;
     private JComboBox<String> memberCombo;
     private JComboBox<String> bookCombo;
-    private JComboBox<String> bookCopyCombo = new JComboBox<>(); // Initialize bookCopyCombo
-    private JComboBox<String> authorCombo = new JComboBox<>(); // Initialize authorCombo
+    private JComboBox<String> bookCopyCombo;
+    private JComboBox<String> authorCombo;
     
     public LibraryManagementSystem() {
         initializeDatabase();
+        initializeComboBoxes(); // Initialize combo boxes before refreshing
         initializeGUI();
+        refreshComboBoxes(); // Refresh combo boxes after GUI initialization
     }
+
+    private void initializeComboBoxes() {
+        memberCombo = new JComboBox<>();
+        bookCombo = new JComboBox<>();
+        bookCopyCombo = new JComboBox<>();
+        authorCombo = new JComboBox<>();
+    }
+
     private void refreshComboBoxes() {
         try {
             // Refresh member combo box
@@ -34,27 +44,25 @@ public class LibraryManagementSystem extends JFrame {
             // Refresh book combo box
             bookCombo.removeAllItems();
             rs = stmt.executeQuery(
-                "SELECT DISTINCT b.Title FROM Book b " +
-                "INNER JOIN Book_copy bc ON b.Book_Id = bc.Book_Id " +
-                "WHERE bc.Status = 'AVAILABLE'"
+                "SELECT Book_Id, Title FROM Book"
             );
             while (rs.next()) {
-                bookCombo.addItem(rs.getString("Title"));
+                bookCombo.addItem(rs.getInt("Book_Id") + " - " + rs.getString("Title"));
             }
 
             // Refresh book copy combo box
-            if (bookCopyCombo != null) {
-                bookCopyCombo.removeAllItems();
-                rs = stmt.executeQuery("SELECT Title FROM Book");
-                while (rs.next()) {
-                    bookCopyCombo.addItem(rs.getString("Title"));
-                }
+            bookCopyCombo.removeAllItems();
+            rs = stmt.executeQuery("SELECT Title FROM Book");
+            while (rs.next()) {
+                bookCopyCombo.addItem(rs.getString("Title"));
             }
 
             // Refresh author combo box
             authorCombo.removeAllItems();
             rs = stmt.executeQuery("SELECT First_name, Last_name FROM Author");
+
             while (rs.next()) {
+                System.out.println(rs.getString("First_name") + " " + rs.getString("Last_name"));
                 authorCombo.addItem(rs.getString("First_name") + " " + rs.getString("Last_name"));
             }
         } catch (SQLException e) {
@@ -264,20 +272,8 @@ public class LibraryManagementSystem extends JFrame {
         DefaultListModel<String> authorListModel = new DefaultListModel<>();
         JList<String> authorList = new JList<>(authorListModel);
         JScrollPane authorScrollPane = new JScrollPane(authorList);
-        JComboBox<String> authorComboBox = new JComboBox<>();
         JButton addAuthorButton = new JButton("Add Author");
         JButton removeAuthorButton = new JButton("Remove Author"); 
-
-        // Populate author combo box
-        try {
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT CONCAT(First_name, ' ', Last_name) AS FullName FROM Author");
-            while (rs.next()) {
-                authorComboBox.addItem(rs.getString("FullName"));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
 
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Title:"), gbc);
@@ -290,7 +286,7 @@ public class LibraryManagementSystem extends JFrame {
         panel.add(authorScrollPane, gbc);
 
         gbc.gridx = 0; gbc.gridy = 2;
-        panel.add(authorComboBox, gbc);
+        panel.add(authorCombo, gbc);
        
         gbc.gridx = 1;gbc.gridy = 2;
         panel.add(addAuthorButton, gbc);
@@ -310,7 +306,7 @@ public class LibraryManagementSystem extends JFrame {
 
         // Add author button action
         addAuthorButton.addActionListener(e -> {
-            String selectedAuthor = (String) authorComboBox.getSelectedItem();
+            String selectedAuthor = (String) authorCombo.getSelectedItem();
             if (selectedAuthor != null && !authorListModel.contains(selectedAuthor)) {
                 authorListModel.addElement(selectedAuthor);
             }
@@ -380,6 +376,7 @@ public class LibraryManagementSystem extends JFrame {
                 titleField.setText("");
                 publicationDateField.setText("");
                 authorListModel.clear();
+                refreshComboBoxes(); // Refresh combo boxes after adding a book
 
             } catch (SQLException ex) {
                 JOptionPane.showMessageDialog(panel, "Error adding book: " + ex.getMessage());
@@ -542,51 +539,48 @@ public class LibraryManagementSystem extends JFrame {
                     tableModel.setColumnIdentifiers(new String[]{"Book ID", "Title", "Authors", "Publication Date", "Total Copies", "Available Copies"});
                     if ("Title".equals(selectedAttribute)) {
                         query = "SELECT b.Book_Id, b.Title, GROUP_CONCAT(CONCAT(a.First_name, ' ', a.Last_name) SEPARATOR ', ') AS Authors, b.Publication_date, " +
-                                "COUNT(bc.Copy_Id) as total_copies, " +
-                                "SUM(CASE WHEN bc.Status = 'AVAILABLE' THEN 1 ELSE 0 END) as available_copies " +
+                                "(SELECT COUNT(*) FROM Book_copy bc WHERE bc.Book_Id = b.Book_Id) as total_copies, " +
+                                "(SELECT COUNT(DISTINCT bc.Copy_Id) FROM Book_copy bc WHERE bc.Book_Id = b.Book_Id AND bc.Status = 'AVAILABLE') as available_copies " +
                                 "FROM Book b " +
                                 "LEFT JOIN WROTE w ON b.Book_Id = w.Book_Book_Id " +
                                 "LEFT JOIN Author a ON w.Author_Author_Id = a.Author_Id " +
-                                "LEFT JOIN Book_copy bc ON b.Book_Id = bc.Book_Id " +
                                 "WHERE b.Title LIKE ? " +
                                 "GROUP BY b.Book_Id";
                     } else if ("Author".equals(selectedAttribute)) {
                         query = "SELECT b.Book_Id, b.Title, GROUP_CONCAT(CONCAT(a.First_name, ' ', a.Last_name) SEPARATOR ', ') AS Authors, b.Publication_date, " +
-                                "COUNT(bc.Copy_Id) as total_copies, " +
-                                "SUM(CASE WHEN bc.Status = 'AVAILABLE' THEN 1 ELSE 0 END) as available_copies " +
+                                "(SELECT COUNT(*) FROM Book_copy bc WHERE bc.Book_Id = b.Book_Id) as total_copies, " +
+                                "(SELECT COUNT(DISTINCT bc.Copy_Id) FROM Book_copy bc WHERE bc.Book_Id = b.Book_Id AND bc.Status = 'AVAILABLE') as available_copies " +
                                 "FROM Book b " +
                                 "LEFT JOIN WROTE w ON b.Book_Id = w.Book_Book_Id " +
                                 "LEFT JOIN Author a ON w.Author_Author_Id = a.Author_Id " +
-                                "LEFT JOIN Book_copy bc ON b.Book_Id = bc.Book_Id " +
                                 "WHERE a.First_name LIKE ? OR a.Last_name LIKE ? " +
                                 "GROUP BY b.Book_Id";
                     } else {
                         query = "SELECT b.Book_Id, b.Title, GROUP_CONCAT(CONCAT(a.First_name, ' ', a.Last_name) SEPARATOR ', ') AS Authors, b.Publication_date, " +
-                                "COUNT(bc.Copy_Id) as total_copies, " +
-                                "SUM(CASE WHEN bc.Status = 'AVAILABLE' THEN 1 ELSE 0 END) as available_copies " +
+                                "(SELECT COUNT(*) FROM Book_copy bc WHERE bc.Book_Id = b.Book_Id) as total_copies, " +
+                                "(SELECT COUNT(DISTINCT bc.Copy_Id) FROM Book_copy bc WHERE bc.Book_Id = b.Book_Id AND bc.Status = 'AVAILABLE') as available_copies " +
                                 "FROM Book b " +
                                 "LEFT JOIN WROTE w ON b.Book_Id = w.Book_Book_Id " +
                                 "LEFT JOIN Author a ON w.Author_Author_Id = a.Author_Id " +
-                                "LEFT JOIN Book_copy bc ON b.Book_Id = bc.Book_Id " +
                                 "WHERE b.Publication_date LIKE ? " +
                                 "GROUP BY b.Book_Id";
                     }
                 } else if ("Author".equals(selectedEntity)) {
                     tableModel.setColumnIdentifiers(new String[]{"Author ID", "First Name", "Last Name", "Bio", "Total Books"});
                     if ("First Name".equals(selectedAttribute)) {
-                        query = "SELECT a.Author_Id, a.First_name, a.Last_name, a.Bio, COUNT(w.Book_Book_Id) as total_books " +
+                        query = "SELECT a.Author_Id, a.First_name, a.Last_name, a.Bio, COUNT(DISTINCT w.Book_Book_Id) as total_books " +
                                 "FROM Author a " +
                                 "LEFT JOIN WROTE w ON a.Author_Id = w.Author_Author_Id " +
                                 "WHERE a.First_name LIKE ? " +
                                 "GROUP BY a.Author_Id";
                     } else if ("Last Name".equals(selectedAttribute)) {
-                        query = "SELECT a.Author_Id, a.First_name, a.Last_name, a.Bio, COUNT(w.Book_Book_Id) as total_books " +
+                        query = "SELECT a.Author_Id, a.First_name, a.Last_name, a.Bio, COUNT(DISTINCT w.Book_Book_Id) as total_books " +
                                 "FROM Author a " +
                                 "LEFT JOIN WROTE w ON a.Author_Id = w.Author_Author_Id " +
                                 "WHERE a.Last_name LIKE ? " +
                                 "GROUP BY a.Author_Id";
                     } else {
-                        query = "SELECT a.Author_Id, a.First_name, a.Last_name, a.Bio, COUNT(w.Book_Book_Id) as total_books " +
+                        query = "SELECT a.Author_Id, a.First_name, a.Last_name, a.Bio, COUNT(DISTINCT w.Book_Book_Id) as total_books " +
                                 "FROM Author a " +
                                 "LEFT JOIN WROTE w ON a.Author_Id = w.Author_Author_Id " +
                                 "WHERE a.Bio LIKE ? " +
@@ -671,38 +665,10 @@ public class LibraryManagementSystem extends JFrame {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         
-        // Create combo boxes
-        memberCombo = new JComboBox<>();
-        bookCombo = new JComboBox<>();
-        
+        // Initialize combo boxes
+        // memberCombo = new JComboBox<>();
+        // bookCombo = new JComboBox<>();
         refreshComboBoxes();
-        // Populate member combo box
-        try {
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery(
-                "SELECT First_name, Last_name FROM Member"
-            );
-            while (rs.next()) {
-                memberCombo.addItem(rs.getString("First_name") + " " + rs.getString("Last_name"));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        
-        // Populate book combo box
-        try {
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery(
-                "SELECT DISTINCT b.Title FROM Book b " +
-                "INNER JOIN Book_copy bc ON b.Book_Id = bc.Book_Id " +
-                "WHERE bc.Status = 'AVAILABLE'"
-            );
-            while (rs.next()) {
-                bookCombo.addItem(rs.getString("Title"));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
         
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Select Member:"), gbc);
@@ -718,6 +684,8 @@ public class LibraryManagementSystem extends JFrame {
         gbc.gridx = 0; gbc.gridy = 2;
         gbc.gridwidth = 2;
         panel.add(borrowButton, gbc);
+
+        
         
         borrowButton.addActionListener(e -> {
             try {
@@ -791,7 +759,6 @@ public class LibraryManagementSystem extends JFrame {
                     while (rs.next()) {
                         bookCombo.addItem(rs.getString("Title"));
                     }
-                    
                 } else {
                     JOptionPane.showMessageDialog(this, "No copies available!");
                 }
@@ -809,21 +776,9 @@ public class LibraryManagementSystem extends JFrame {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         
-        JComboBox<String> bookCombo = new JComboBox<>();
         JTextField printDateField = new JTextField(20);
         
         // Populate book combo box
-        refreshComboBoxes();
-        try {
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT Book_Id, Title FROM Book");
-            while (rs.next()) {
-                bookCombo.addItem(rs.getInt("Book_Id") + " - " + rs.getString("Title"));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Select Book:"), gbc);
         gbc.gridx = 1;
@@ -858,14 +813,14 @@ public class LibraryManagementSystem extends JFrame {
                 
                 JOptionPane.showMessageDialog(this, "Copy added successfully!");
                 printDateField.setText("");
-                refreshComboBoxes();
+                refreshComboBoxes(); // Refresh combo boxes after adding a copy
                 
             } catch (SQLException ex) {
                 JOptionPane.showMessageDialog(this, "Error adding copy: " + ex.getMessage());
             } catch (NumberFormatException ex) {
                 JOptionPane.showMessageDialog(this, "Invalid book selection format: " + ex.getMessage());
-            }catch(IllegalArgumentException ex) {
-            	JOptionPane.showMessageDialog(panel, "Invalid date format.", "Input Error", JOptionPane.ERROR_MESSAGE);
+            } catch (IllegalArgumentException ex) {
+                JOptionPane.showMessageDialog(panel, "Invalid date format.", "Input Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
         });
@@ -932,7 +887,8 @@ public class LibraryManagementSystem extends JFrame {
                 firstNameField.setText("");
                 lastNameField.setText("");
                 bioArea.setText("");
-                refreshComboBoxes();
+                System.out.println("I'm gonna refresh now...");
+                refreshComboBoxes(); // Refresh combo boxes after adding an author
                 
             } catch (SQLException ex) {
                 JOptionPane.showMessageDialog(this, "Error adding author: " + ex.getMessage());
@@ -1185,6 +1141,9 @@ public class LibraryManagementSystem extends JFrame {
             gbc.gridx = 0; gbc.gridy = 0;
             panel.add(new JLabel("First Name:"), gbc);
             gbc.gridx = 1;
+            panel.add(firstNameField, gbc);
+
+            gbc.gridx = 0; gbc.gridy = 1;
             panel.add(firstNameField, gbc);
 
             gbc.gridx = 0; gbc.gridy = 1;
