@@ -10,11 +10,13 @@ import org.jdesktop.swingx.autocomplete.AutoCompleteDecorator;
 
 public class LibraryManagementSystem extends JFrame {
     private Connection conn;
-    private JComboBox<String> memberCombo;
-    private JComboBox<String> bookCombo;
-    private JComboBox<String> bookCopyCombo;
-    private JComboBox<String> authorCombo;
-    
+    private JComboBox<String> memberComboBorrow;
+    private JComboBox<String> bookComboBorrow;
+    private JComboBox<String> bookCopyComboBorrow;
+    private JComboBox<String> memberComboReturn;
+    private JComboBox<String> bookCopyComboReturn;
+    private JComboBox<String> authorComboBook;
+
     public LibraryManagementSystem() {
         initializeDatabase();
         initializeComboBoxes(); // Initialize combo boxes before refreshing
@@ -23,48 +25,57 @@ public class LibraryManagementSystem extends JFrame {
     }
 
     private void initializeComboBoxes() {
-        memberCombo = new JComboBox<>();
-        bookCombo = new JComboBox<>();
-        bookCopyCombo = new JComboBox<>();
-        authorCombo = new JComboBox<>();
+        memberComboBorrow = new JComboBox<>();
+        bookComboBorrow = new JComboBox<>();
+        bookCopyComboBorrow = new JComboBox<>();
+        memberComboReturn = new JComboBox<>();
+        bookCopyComboReturn = new JComboBox<>();
+        authorComboBook = new JComboBox<>();
     }
 
     private void refreshComboBoxes() {
         try {
-            // Refresh member combo box
-            memberCombo.removeAllItems();
+            // Refresh member combo box for borrowing
+            memberComboBorrow.removeAllItems();
             Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery(
-                "SELECT First_name, Last_name FROM Member"
-            );
+            ResultSet rs = stmt.executeQuery("SELECT First_name, Last_name FROM Member");
             while (rs.next()) {
-                memberCombo.addItem(rs.getString("First_name") + " " + rs.getString("Last_name"));
+                memberComboBorrow.addItem(rs.getString("First_name") + " " + rs.getString("Last_name"));
             }
 
             // Refresh book combo box for borrowing - show only books with available copies
-            bookCombo.removeAllItems();
-            rs = stmt.executeQuery(
-                "SELECT b.Book_Id, b.Title FROM Book b "
-            );
+            bookComboBorrow.removeAllItems();
+            rs = stmt.executeQuery("SELECT b.Book_Id, b.Title FROM Book b");
             while (rs.next()) {
-                //System.out.println("inserting "+rs.getString("Title"));
-                bookCombo.addItem(rs.getString("Book_Id") + " - " + rs.getString("Title"));
+                bookComboBorrow.addItem(rs.getString("Book_Id") + " - " + rs.getString("Title"));
             }
 
-            // Refresh book copy combo box
-            bookCopyCombo.removeAllItems();
+            // Refresh book copy combo box for borrowing
+            bookCopyComboBorrow.removeAllItems();
             rs = stmt.executeQuery("SELECT Title FROM Book");
             while (rs.next()) {
-                bookCopyCombo.addItem(rs.getString("Title"));
+                bookCopyComboBorrow.addItem(rs.getString("Title"));
             }
 
-            // Refresh author combo box
-            authorCombo.removeAllItems();
-            rs = stmt.executeQuery("SELECT First_name, Last_name FROM Author");
-
+            // Refresh member combo box for returning
+            memberComboReturn.removeAllItems();
+            rs = stmt.executeQuery("SELECT First_name, Last_name FROM Member");
             while (rs.next()) {
-                System.out.println(rs.getString("First_name") + " " + rs.getString("Last_name"));
-                authorCombo.addItem(rs.getString("First_name") + " " + rs.getString("Last_name"));
+                memberComboReturn.addItem(rs.getString("First_name") + " " + rs.getString("Last_name"));
+            }
+
+            // Refresh book copy combo box for returning
+            bookCopyComboReturn.removeAllItems();
+            rs = stmt.executeQuery("SELECT Title FROM Book");
+            while (rs.next()) {
+                bookCopyComboReturn.addItem(rs.getString("Title"));
+            }
+
+            // Refresh author combo box for adding books
+            authorComboBook.removeAllItems();
+            rs = stmt.executeQuery("SELECT First_name, Last_name FROM Author");
+            while (rs.next()) {
+                authorComboBook.addItem(rs.getString("First_name") + " " + rs.getString("Last_name"));
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -257,10 +268,12 @@ public class LibraryManagementSystem extends JFrame {
         add(tabbedPane);
 
         // Decorate combo boxes with auto-complete
-        AutoCompleteDecorator.decorate(memberCombo);
-        AutoCompleteDecorator.decorate(bookCombo);
-        AutoCompleteDecorator.decorate(bookCopyCombo);
-        AutoCompleteDecorator.decorate(authorCombo);
+        AutoCompleteDecorator.decorate(memberComboBorrow);
+        AutoCompleteDecorator.decorate(bookComboBorrow);
+        AutoCompleteDecorator.decorate(bookCopyComboBorrow);
+        AutoCompleteDecorator.decorate(memberComboReturn);
+        AutoCompleteDecorator.decorate(bookCopyComboReturn);
+        AutoCompleteDecorator.decorate(authorComboBook);
     }
     
     private JPanel createBookPanel() {
@@ -288,7 +301,7 @@ public class LibraryManagementSystem extends JFrame {
         panel.add(authorScrollPane, gbc);
 
         gbc.gridx = 0; gbc.gridy = 2;
-        panel.add(authorCombo, gbc);
+        panel.add(authorComboBook, gbc);
        
         gbc.gridx = 1;gbc.gridy = 2;
         panel.add(addAuthorButton, gbc);
@@ -308,7 +321,7 @@ public class LibraryManagementSystem extends JFrame {
 
         // Add author button action
         addAuthorButton.addActionListener(e -> {
-            String selectedAuthor = (String) authorCombo.getSelectedItem();
+            String selectedAuthor = (String) authorComboBook.getSelectedItem();
             if (selectedAuthor != null && !authorListModel.contains(selectedAuthor)) {
                 authorListModel.addElement(selectedAuthor);
             }
@@ -672,12 +685,12 @@ public class LibraryManagementSystem extends JFrame {
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Select Member:"), gbc);
         gbc.gridx = 1;
-        panel.add(memberCombo, gbc);
+        panel.add(memberComboBorrow, gbc);
         
         gbc.gridx = 0; gbc.gridy = 1;
         panel.add(new JLabel("Select Book:"), gbc);
         gbc.gridx = 1;
-        panel.add(bookCopyCombo, gbc);
+        panel.add(bookCopyComboBorrow, gbc);
         
         JButton borrowButton = new JButton("Borrow Book");
         gbc.gridx = 0; gbc.gridy = 2;
@@ -688,8 +701,8 @@ public class LibraryManagementSystem extends JFrame {
         
         borrowButton.addActionListener(e -> {
             try {
-                String memberSelection = (String) memberCombo.getSelectedItem();
-                String bookSelection = (String) bookCopyCombo.getSelectedItem();
+                String memberSelection = (String) memberComboBorrow.getSelectedItem();
+                String bookSelection = (String) bookCopyComboBorrow.getSelectedItem();
                 
                 if (memberSelection == null || bookSelection == null) {
                     JOptionPane.showMessageDialog(this, "Please select both member and book");
@@ -770,12 +783,12 @@ public class LibraryManagementSystem extends JFrame {
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Select Member:"), gbc);
         gbc.gridx = 1;
-        panel.add(memberCombo, gbc);
+        panel.add(memberComboReturn, gbc);
 
         gbc.gridx = 0; gbc.gridy = 1;
         panel.add(new JLabel("Select Book:"), gbc);
         gbc.gridx = 1;
-        panel.add(bookCopyCombo, gbc);
+        panel.add(bookCopyComboReturn, gbc);
 
         JButton returnButton = new JButton("Return Book");
         gbc.gridx = 0; gbc.gridy = 2;
@@ -784,8 +797,8 @@ public class LibraryManagementSystem extends JFrame {
 
         returnButton.addActionListener(e -> {
             try {
-                String memberSelection = (String) memberCombo.getSelectedItem();
-                String bookSelection = (String) bookCopyCombo.getSelectedItem();
+                String memberSelection = (String) memberComboReturn.getSelectedItem();
+                String bookSelection = (String) bookCopyComboReturn.getSelectedItem();
 
                 if (memberSelection == null || bookSelection == null) {
                     JOptionPane.showMessageDialog(this, "Please select both member and book");
@@ -844,7 +857,7 @@ public class LibraryManagementSystem extends JFrame {
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Select Book:"), gbc);
         gbc.gridx = 1;
-        panel.add(bookCombo, gbc);
+        panel.add(bookComboBorrow, gbc);
         
         gbc.gridx = 0; gbc.gridy = 1;
         panel.add(new JLabel("Print Date (YYYY-MM-DD):"), gbc);
@@ -858,7 +871,7 @@ public class LibraryManagementSystem extends JFrame {
         
         addButton.addActionListener(e -> {
             try {
-                String bookSelection = (String) bookCombo.getSelectedItem();
+                String bookSelection = (String) bookComboBorrow.getSelectedItem();
                 if (bookSelection == null) {
                     JOptionPane.showMessageDialog(this, "Please select a book");
                     return;
