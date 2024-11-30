@@ -666,9 +666,6 @@ public class LibraryManagementSystem extends JFrame {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         
-        // Initialize combo boxes
-        memberCombo = new JComboBox<>();
-        bookCombo = new JComboBox<>();
         refreshComboBoxes();
         
         gbc.gridx = 0; gbc.gridy = 0;
@@ -679,7 +676,7 @@ public class LibraryManagementSystem extends JFrame {
         gbc.gridx = 0; gbc.gridy = 1;
         panel.add(new JLabel("Select Book:"), gbc);
         gbc.gridx = 1;
-        panel.add(bookCombo, gbc);
+        panel.add(bookCopyCombo, gbc);
         
         JButton borrowButton = new JButton("Borrow Book");
         gbc.gridx = 0; gbc.gridy = 2;
@@ -691,7 +688,7 @@ public class LibraryManagementSystem extends JFrame {
         borrowButton.addActionListener(e -> {
             try {
                 String memberSelection = (String) memberCombo.getSelectedItem();
-                String bookSelection = (String) bookCombo.getSelectedItem();
+                String bookSelection = (String) bookCopyCombo.getSelectedItem();
                 
                 if (memberSelection == null || bookSelection == null) {
                     JOptionPane.showMessageDialog(this, "Please select both member and book");
@@ -749,17 +746,7 @@ public class LibraryManagementSystem extends JFrame {
                     updateStmt.executeUpdate();
                     
                     JOptionPane.showMessageDialog(this, "Book borrowed successfully!");
-                    
-                    // Refresh book combo box
-                    bookCombo.removeAllItems();
-                    ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT DISTINCT b.Title FROM Book b " +
-                        "INNER JOIN Book_copy bc ON b.Book_Id = bc.Book_Id " +
-                        "WHERE bc.Status = 'AVAILABLE'"
-                    );
-                    while (rs.next()) {
-                        bookCombo.addItem(rs.getString("Title"));
-                    }
+                    refreshComboBoxes(); // Refresh combo boxes after borrowing a book
                 } else {
                     JOptionPane.showMessageDialog(this, "No copies available!");
                 }
