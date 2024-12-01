@@ -7,30 +7,49 @@ import java.sql.*;
 import java.time.LocalDate;
 import java.util.Vector;
 import org.jdesktop.swingx.autocomplete.AutoCompleteDecorator;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import javax.imageio.ImageIO;
 
 public class LibraryManagementSystem extends JFrame {
     private Connection conn;
     private JComboBox<String> memberComboBorrow;
     private JComboBox<String> bookComboBorrow;
     private JComboBox<String> bookCopyComboBorrow;
+    private JComboBox<String> bookComboBorrowSpecific;
+    private JComboBox<String> bookCopyComboBorrowSpecific;
     private JComboBox<String> memberComboReturn;
     private JComboBox<String> bookCopyComboReturn;
     private JComboBox<String> authorComboBook;
+    private JComboBox<String> bookComboCopy;
+    private BufferedImage backgroundImage;
 
     public LibraryManagementSystem() {
+        loadBackgroundImage();
         initializeDatabase();
         initializeComboBoxes(); // Initialize combo boxes before refreshing
         initializeGUI();
         refreshComboBoxes(); // Refresh combo boxes after GUI initialization
     }
 
+    private void loadBackgroundImage() {
+        try {
+            backgroundImage = ImageIO.read(new File("background.png"));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private void initializeComboBoxes() {
         memberComboBorrow = new JComboBox<>();
         bookComboBorrow = new JComboBox<>();
+        bookComboBorrowSpecific = new JComboBox<>();
         bookCopyComboBorrow = new JComboBox<>();
+        bookCopyComboBorrowSpecific = new JComboBox<>();
         memberComboReturn = new JComboBox<>();
         bookCopyComboReturn = new JComboBox<>();
         authorComboBook = new JComboBox<>();
+        bookComboCopy = new JComboBox<>();
     }
 
     private void refreshComboBoxes() {
@@ -38,44 +57,51 @@ public class LibraryManagementSystem extends JFrame {
             // Refresh member combo box for borrowing
             memberComboBorrow.removeAllItems();
             Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT First_name, Last_name FROM Member");
+            ResultSet rs = stmt.executeQuery("SELECT Member_Id, First_name, Last_name FROM Member");
             while (rs.next()) {
-                memberComboBorrow.addItem(rs.getString("First_name") + " " + rs.getString("Last_name"));
+                memberComboBorrow.addItem(rs.getString("First_name") + " " + rs.getString("Last_name") + " - " + rs.getInt("Member_Id"));
             }
 
             // Refresh book combo box for borrowing - show only books with available copies
-            bookComboBorrow.removeAllItems();
-            rs = stmt.executeQuery("SELECT b.Book_Id, b.Title FROM Book b");
+            bookComboBorrowSpecific.removeAllItems();
+            rs = stmt.executeQuery("SELECT DISTINCT b.Book_Id, b.Title FROM Book b JOIN Book_copy bc ON b.Book_Id = bc.Book_Id WHERE bc.Status = 'AVAILABLE'");
             while (rs.next()) {
-                bookComboBorrow.addItem(rs.getString("Book_Id") + " - " + rs.getString("Title"));
+                bookComboBorrowSpecific.addItem(rs.getString("Title") + " - " + rs.getInt("Book_Id"));
             }
 
             // Refresh book copy combo box for borrowing
-            bookCopyComboBorrow.removeAllItems();
-            rs = stmt.executeQuery("SELECT Title FROM Book");
+            bookCopyComboBorrowSpecific.removeAllItems();
+            rs = stmt.executeQuery("SELECT Copy_Id, Title, Print_date FROM Book_copy JOIN Book ON Book_copy.Book_Id = Book.Book_Id WHERE Status = 'AVAILABLE'");
             while (rs.next()) {
-                bookCopyComboBorrow.addItem(rs.getString("Title"));
+                bookCopyComboBorrowSpecific.addItem(rs.getString("Title") + " - " + rs.getInt("Copy_Id") + " (Print Date: " + rs.getDate("Print_date") + ")");
             }
 
             // Refresh member combo box for returning
             memberComboReturn.removeAllItems();
-            rs = stmt.executeQuery("SELECT First_name, Last_name FROM Member");
+            rs = stmt.executeQuery("SELECT Member_Id, First_name, Last_name FROM Member");
             while (rs.next()) {
-                memberComboReturn.addItem(rs.getString("First_name") + " " + rs.getString("Last_name"));
+                memberComboReturn.addItem(rs.getString("First_name") + " " + rs.getString("Last_name") + " - " + rs.getInt("Member_Id"));
             }
 
             // Refresh book copy combo box for returning
             bookCopyComboReturn.removeAllItems();
-            rs = stmt.executeQuery("SELECT Title FROM Book");
+            rs = stmt.executeQuery("SELECT Copy_Id, Title, Print_date FROM Book_copy JOIN Book ON Book_copy.Book_Id = Book.Book_Id WHERE Status = 'BORROWED'");
             while (rs.next()) {
-                bookCopyComboReturn.addItem(rs.getString("Title"));
+                bookCopyComboReturn.addItem(rs.getString("Title") + " - " + rs.getInt("Copy_Id") + " (Print Date: " + rs.getDate("Print_date") + ")");
             }
 
             // Refresh author combo box for adding books
             authorComboBook.removeAllItems();
-            rs = stmt.executeQuery("SELECT First_name, Last_name FROM Author");
+            rs = stmt.executeQuery("SELECT Author_Id, First_name, Last_name FROM Author");
             while (rs.next()) {
-                authorComboBook.addItem(rs.getString("First_name") + " " + rs.getString("Last_name"));
+                authorComboBook.addItem(rs.getString("First_name") + " " + rs.getString("Last_name") + " - " + rs.getInt("Author_Id"));
+            }
+
+            // Refresh book combo box for adding copies
+            bookComboCopy.removeAllItems();
+            rs = stmt.executeQuery("SELECT Book_Id, Title FROM Book");
+            while (rs.next()) {
+                bookComboCopy.addItem(rs.getString("Title") + " - " + rs.getInt("Book_Id"));
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -145,10 +171,10 @@ public class LibraryManagementSystem extends JFrame {
             String[] sqlStatements = {
                 "SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0",
                 "SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0",
-                "SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'",
+                "SET @OLD_SQL_MODE=@@SQL_MODE='ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'",
                 
                 "CREATE TABLE IF NOT EXISTS `Author` (" +
-                "`Author_Id` INT NOT NULL AUTO_INCREMENT," +
+                "`Author_Id` INT NOT NULL," +
                 "`First_name` VARCHAR(45) NULL," +
                 "`Last_name` VARCHAR(45) NULL," +
                 "`Bio` VARCHAR(500) NULL," +
@@ -156,21 +182,21 @@ public class LibraryManagementSystem extends JFrame {
                 "ENGINE = InnoDB",
                 
                 "CREATE TABLE IF NOT EXISTS `Book` (" +
-                "`Book_Id` INT NOT NULL AUTO_INCREMENT," +
+                "`Book_Id` INT NOT NULL," +
                 "`Publication_date` DATE NULL," +
                 "`Title` VARCHAR(45) NULL," +
                 "PRIMARY KEY (`Book_Id`))" +
                 "ENGINE = InnoDB",
                 
                 "CREATE TABLE IF NOT EXISTS `Library_card` (" +
-                "`Card_Id` INT NOT NULL AUTO_INCREMENT," +
+                "`Card_Id` INT NOT NULL," +
                 "`Issue_date` DATE NULL," +
                 "`Expiry_date` DATE NULL," +
                 "PRIMARY KEY (`Card_Id`))" +
                 "ENGINE = InnoDB",
                 
                 "CREATE TABLE IF NOT EXISTS `Member` (" +
-                "`Member_Id` INT NOT NULL AUTO_INCREMENT," +
+                "`Member_Id` INT NOT NULL," +
                 "`First_name` VARCHAR(45) NULL," +
                 "`Last_name` VARCHAR(45) NULL," +
                 "`Email` VARCHAR(45) NULL," +
@@ -187,7 +213,7 @@ public class LibraryManagementSystem extends JFrame {
                 "ENGINE = InnoDB",
                 
                 "CREATE TABLE IF NOT EXISTS `Book_copy` (" +
-                "`Copy_Id` INT NOT NULL AUTO_INCREMENT," +
+                "`Copy_Id` INT NOT NULL," +
                 "`Print_date` DATE NULL," +
                 "`Book_Id` INT NOT NULL," +
                 "`Borrower_Id` INT NULL," +
@@ -246,34 +272,64 @@ public class LibraryManagementSystem extends JFrame {
         }
     }
     
+    private JPanel createAddPanel() {
+        JTabbedPane addTabbedPane = new JTabbedPane();
+        addTabbedPane.addTab("Add Book", createBookPanel());
+        addTabbedPane.addTab("Add Member", createMemberPanel());
+        addTabbedPane.addTab("Add Author", createAuthorPanel());
+        addTabbedPane.addTab("Add Copy", createCopyPanel());
+
+        JPanel panel = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                if (backgroundImage != null) {
+                    g.drawImage(backgroundImage, 0, 0, getWidth(), getHeight(), this);
+                }
+            }
+        };
+        panel.add(addTabbedPane, BorderLayout.CENTER);
+        return panel;
+    }
+
     private void initializeGUI() {
         setTitle("Library Management System");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(800, 600);
         setLocationRelativeTo(null);
-        
+
         JTabbedPane tabbedPane = new JTabbedPane();
-        
+
         // Add tabs
-        tabbedPane.addTab("Add Book", createBookPanel());
-        tabbedPane.addTab("Add Member", createMemberPanel());
-        tabbedPane.addTab("Add Author", createAuthorPanel());
+        tabbedPane.addTab("Add", createAddPanel());
         tabbedPane.addTab("Borrow Book", createBorrowPanel());
-        tabbedPane.addTab("Return Book", createReturnPanel()); // New tab for returning books
-        tabbedPane.addTab("Add Copy", createCopyPanel());
+        tabbedPane.addTab("Return Book", createReturnPanel());
         tabbedPane.addTab("Borrowed Books", createBorrowedBooksPanel());
         tabbedPane.addTab("Search", createSearchPanel());
         tabbedPane.addTab("Update/Delete", createUpdateDeletePanel());
-        
-        add(tabbedPane);
+
+        // Create a panel with a background image
+        JPanel backgroundPanel = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                if (backgroundImage != null) {
+                    g.drawImage(backgroundImage, 0, 0, getWidth(), getHeight(), this);
+                }
+            }
+        };
+        backgroundPanel.add(tabbedPane, BorderLayout.CENTER);
+
+        setContentPane(backgroundPanel);
 
         // Decorate combo boxes with auto-complete
         AutoCompleteDecorator.decorate(memberComboBorrow);
-        AutoCompleteDecorator.decorate(bookComboBorrow);
-        AutoCompleteDecorator.decorate(bookCopyComboBorrow);
+        AutoCompleteDecorator.decorate(bookComboBorrowSpecific);
+        AutoCompleteDecorator.decorate(bookCopyComboBorrowSpecific);
         AutoCompleteDecorator.decorate(memberComboReturn);
         AutoCompleteDecorator.decorate(bookCopyComboReturn);
         AutoCompleteDecorator.decorate(authorComboBook);
+        AutoCompleteDecorator.decorate(bookComboCopy);
     }
     
     private JPanel createBookPanel() {
@@ -282,6 +338,7 @@ public class LibraryManagementSystem extends JFrame {
         gbc.insets = new Insets(5, 5, 5, 5);
 
         // Components for adding books
+        JTextField bookIdField = new JTextField(20);
         JTextField titleField = new JTextField(20);
         JTextField publicationDateField = new JTextField(20);
         DefaultListModel<String> authorListModel = new DefaultListModel<>();
@@ -291,22 +348,27 @@ public class LibraryManagementSystem extends JFrame {
         JButton removeAuthorButton = new JButton("Remove Author"); 
 
         gbc.gridx = 0; gbc.gridy = 0;
+        panel.add(new JLabel("Book ID:"), gbc);
+        gbc.gridx = 1;
+        panel.add(bookIdField, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 1;
         panel.add(new JLabel("Title:"), gbc);
         gbc.gridx = 1;
         panel.add(titleField, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 1;
+        gbc.gridx = 0; gbc.gridy = 2;
         panel.add(new JLabel("Authors:"), gbc);
         gbc.gridx = 1;
         panel.add(authorScrollPane, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 2;
+        gbc.gridx = 0; gbc.gridy = 3;
         panel.add(authorComboBook, gbc);
        
-        gbc.gridx = 1;gbc.gridy = 2;
+        gbc.gridx = 1;gbc.gridy = 3;
         panel.add(addAuthorButton, gbc);
 
-        gbc.gridx = 2; gbc.gridy = 2;
+        gbc.gridx = 2; gbc.gridy = 3;
         panel.add(removeAuthorButton, gbc); 
 
         gbc.gridx = 0; gbc.gridy = 4;
@@ -349,52 +411,53 @@ public class LibraryManagementSystem extends JFrame {
 
                 // Insert book
                 PreparedStatement bookStmt = conn.prepareStatement(
-                    "INSERT INTO Book (Title, Publication_date) VALUES (?, ?)",
-                    Statement.RETURN_GENERATED_KEYS
+                    "INSERT INTO Book (Book_Id, Title, Publication_date) VALUES (?, ?, ?)"
                 );
-                bookStmt.setString(1, titleField.getText());
+                bookStmt.setInt(1, Integer.parseInt(bookIdField.getText()));
+                bookStmt.setString(2, titleField.getText());
                 try {
-                    bookStmt.setDate(2, Date.valueOf(publicationDateField.getText()));
+                    bookStmt.setDate(3, Date.valueOf(publicationDateField.getText()));
                 } catch (IllegalArgumentException ee) {
                     JOptionPane.showMessageDialog(panel, "Empty/Incorrect date format.", "Input Error", JOptionPane.ERROR_MESSAGE);
                     return;
                 }
                 bookStmt.executeUpdate();
 
-                ResultSet bookKeys = bookStmt.getGeneratedKeys();
-                int bookId = -1;
-                if (bookKeys.next()) {
-                    bookId = bookKeys.getInt(1);
-                }
-
                 // Link authors and book
                 for (String author : selectedAuthors) {
-                    PreparedStatement authorStmt = conn.prepareStatement(
-                        "SELECT Author_Id FROM Author WHERE CONCAT(First_name, ' ', Last_name) = ?"
+                    //System.out.println("Inserting author: " + author);
+                    // PreparedStatement authorStmt = conn.prepareStatement(
+                    //     "SELECT Author_Id FROM Author WHERE CONCAT(First_name, ' ', Last_name) = ?"
+                    // );
+                    // authorStmt.setString(1, author);
+                    // ResultSet authorRs = authorStmt.executeQuery();
+                    int authorId = Integer.parseInt(author.split(" - ")[1]);
+                    PreparedStatement wroteStmt = conn.prepareStatement(
+                        "INSERT INTO WROTE (Author_Author_Id, Book_Book_Id) VALUES (?, ?)"
                     );
-                    authorStmt.setString(1, author);
-                    ResultSet authorRs = authorStmt.executeQuery();
-                    if (authorRs.next()) {
-                        int authorId = authorRs.getInt("Author_Id");
-                        PreparedStatement wroteStmt = conn.prepareStatement(
-                            "INSERT INTO WROTE (Author_Author_Id, Book_Book_Id) VALUES (?, ?)"
-                        );
-                        wroteStmt.setInt(1, authorId);
-                        wroteStmt.setInt(2, bookId);
-                        wroteStmt.executeUpdate();
-                    }
+                    wroteStmt.setInt(1, authorId);
+                    wroteStmt.setInt(2, Integer.parseInt(bookIdField.getText()));
+                    wroteStmt.executeUpdate();
+                    
                 }
 
                 JOptionPane.showMessageDialog(panel, "Book added successfully!");
 
                 // Clear fields
+                bookIdField.setText("");
                 titleField.setText("");
                 publicationDateField.setText("");
                 authorListModel.clear();
                 refreshComboBoxes(); // Refresh combo boxes after adding a book
 
             } catch (SQLException ex) {
-                JOptionPane.showMessageDialog(panel, "Error adding book: " + ex.getMessage());
+                if (ex.getErrorCode() == 1062) { // Duplicate entry error code
+                    JOptionPane.showMessageDialog(panel, "Book ID already exists. Please enter a unique ID.", "Input Error", JOptionPane.ERROR_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(panel, "Error adding book: " + ex.getMessage());
+                }
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(panel, "Invalid Book ID format.", "Input Error", JOptionPane.ERROR_MESSAGE);
             }
         });
 
@@ -407,40 +470,49 @@ public class LibraryManagementSystem extends JFrame {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         
+        JTextField memberIdField = new JTextField(20);
         JTextField firstNameField = new JTextField(20);
         JTextField lastNameField = new JTextField(20);
         JTextField emailField = new JTextField(20);
         JTextField phoneField = new JTextField(20);
        
-        
         gbc.gridx = 0; gbc.gridy = 0;
+        panel.add(new JLabel("Member ID:"), gbc);
+        gbc.gridx = 1;
+        panel.add(memberIdField, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 1;
         panel.add(new JLabel("First Name:"), gbc);
         gbc.gridx = 1;
         panel.add(firstNameField, gbc);
         
-        gbc.gridx = 0; gbc.gridy = 1;
+        gbc.gridx = 0; gbc.gridy = 2;
         panel.add(new JLabel("Last Name:"), gbc);
         gbc.gridx = 1;
         panel.add(lastNameField, gbc);
         
-        gbc.gridx = 0; gbc.gridy = 2;
+        gbc.gridx = 0; gbc.gridy = 3;
         panel.add(new JLabel("Email:"), gbc);
         gbc.gridx = 1;
         panel.add(emailField, gbc);
         
-        gbc.gridx = 0; gbc.gridy = 3;
+        gbc.gridx = 0; gbc.gridy = 4;
         panel.add(new JLabel("Phone:"), gbc);
         gbc.gridx = 1;
         panel.add(phoneField, gbc);
         
         JButton addButton = new JButton("Add Member");
-        gbc.gridx = 0; gbc.gridy = 4;
+        gbc.gridx = 0; gbc.gridy = 5;
         gbc.gridwidth = 2;
         panel.add(addButton, gbc);
         
         addButton.addActionListener(e -> {
             try {
                     // Validate input fields
+                    if (memberIdField.getText().trim().isEmpty()) {
+                        JOptionPane.showMessageDialog(panel, "Member ID cannot be empty!", "Input Error", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
                     if (firstNameField.getText().trim().isEmpty()) {
                         JOptionPane.showMessageDialog(panel, "First Name cannot be empty!", "Input Error", JOptionPane.ERROR_MESSAGE);
                         return;
@@ -460,42 +532,45 @@ public class LibraryManagementSystem extends JFrame {
                     
                 // Create library card
                 PreparedStatement cardStmt = conn.prepareStatement(
-                    "INSERT INTO Library_card (Issue_date, Expiry_date) VALUES (?, ?)",
-                    Statement.RETURN_GENERATED_KEYS
+                    "INSERT INTO Library_card (Card_Id, Issue_date, Expiry_date) VALUES (?, ?, ?)"
                 );
+                int cardId = Integer.parseInt(memberIdField.getText());
                 LocalDate issueDate = LocalDate.now();
                 LocalDate expiryDate = issueDate.plusYears(1);
-                cardStmt.setDate(1, Date.valueOf(issueDate));
-                cardStmt.setDate(2, Date.valueOf(expiryDate));
+                cardStmt.setInt(1, cardId);
+                cardStmt.setDate(2, Date.valueOf(issueDate));
+                cardStmt.setDate(3, Date.valueOf(expiryDate));
                 cardStmt.executeUpdate();
-                
-                ResultSet cardKeys = cardStmt.getGeneratedKeys();
-                int cardId = -1;
-                if (cardKeys.next()) {
-                    cardId = cardKeys.getInt(1);
-                }
                 
                 // Create member
                 PreparedStatement memberStmt = conn.prepareStatement(
-                    "INSERT INTO Member (First_name, Last_name, Email, Phone_number, Library_card_Id) VALUES (?, ?, ?, ?, ?)"
+                    "INSERT INTO Member (Member_Id, First_name, Last_name, Email, Phone_number, Library_card_Id) VALUES (?, ?, ?, ?, ?, ?)"
                 );
-                memberStmt.setString(1, firstNameField.getText());
-                memberStmt.setString(2, lastNameField.getText());
-                memberStmt.setString(3, emailField.getText());
-                memberStmt.setString(4, phoneField.getText());
-                memberStmt.setInt(5, cardId);
+                memberStmt.setInt(1, Integer.parseInt(memberIdField.getText()));
+                memberStmt.setString(2, firstNameField.getText());
+                memberStmt.setString(3, lastNameField.getText());
+                memberStmt.setString(4, emailField.getText());
+                memberStmt.setString(5, phoneField.getText());
+                memberStmt.setInt(6, cardId);
                 memberStmt.executeUpdate();
                 
                 JOptionPane.showMessageDialog(this, "Member added successfully!");
                 
                 // Clear fields
+                memberIdField.setText("");
                 firstNameField.setText("");
                 lastNameField.setText("");
                 emailField.setText("");
                 phoneField.setText("");
                 refreshComboBoxes();
             } catch (SQLException ex) {
-                JOptionPane.showMessageDialog(this, "Error adding member: " + ex.getMessage());
+                if (ex.getErrorCode() == 1062) { // Duplicate entry error code
+                    JOptionPane.showMessageDialog(panel, "Member ID already exists. Please enter a unique ID.", "Input Error", JOptionPane.ERROR_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Error adding member: " + ex.getMessage());
+                }
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(panel, "Invalid Member ID format.", "Input Error", JOptionPane.ERROR_MESSAGE);
             }
         });
         
@@ -506,16 +581,18 @@ public class LibraryManagementSystem extends JFrame {
         JPanel panel = new JPanel(new BorderLayout());
 
         JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JComboBox<String> entityCombo = new JComboBox<>(new String[]{"Book", "Author", "Member"});
+        JComboBox<String> entityCombo = new JComboBox<>(new String[]{"Books", "Book Copies", "Authors", "Members"});
         JComboBox<String> attributeCombo = new JComboBox<>();
+        JComboBox<String> bookCombo = new JComboBox<>();
         JTextField searchField = new JTextField(20);
         JButton searchButton = new JButton("Search");
-        
+
         searchPanel.add(new JLabel("Entity:"));
         searchPanel.add(entityCombo);
         searchPanel.add(new JLabel("Attribute:"));
         searchPanel.add(attributeCombo);
         searchPanel.add(searchField);
+        searchPanel.add(bookCombo);
         searchPanel.add(searchButton);
 
         // Create JTable to display results
@@ -528,20 +605,40 @@ public class LibraryManagementSystem extends JFrame {
 
         entityCombo.addActionListener(e -> {
             attributeCombo.removeAllItems();
+            bookCombo.removeAllItems();
             String selectedEntity = (String) entityCombo.getSelectedItem();
-            if ("Book".equals(selectedEntity)) {
+            if ("Books".equals(selectedEntity)) {
                 attributeCombo.addItem("Title");
                 attributeCombo.addItem("Author");
                 attributeCombo.addItem("Publication Date");
-            } else if ("Author".equals(selectedEntity)) {
+                searchField.setVisible(true);
+                bookCombo.setVisible(false);
+            } else if ("Book Copies".equals(selectedEntity)) {
+                attributeCombo.addItem("Book");
+                searchField.setVisible(false);
+                bookCombo.setVisible(true);
+                try {
+                    Statement stmt = conn.createStatement();
+                    ResultSet rs = stmt.executeQuery("SELECT Book_Id, Title FROM Book");
+                    while (rs.next()) {
+                        bookCombo.addItem(rs.getString("Title") + " - " + rs.getInt("Book_Id"));
+                    }
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+            } else if ("Authors".equals(selectedEntity)) {
                 attributeCombo.addItem("First Name");
                 attributeCombo.addItem("Last Name");
                 attributeCombo.addItem("Bio");
-            } else if ("Member".equals(selectedEntity)) {
+                searchField.setVisible(true);
+                bookCombo.setVisible(false);
+            } else if ("Members".equals(selectedEntity)) {
                 attributeCombo.addItem("First Name");
                 attributeCombo.addItem("Last Name");
                 attributeCombo.addItem("Email");
                 attributeCombo.addItem("Phone Number");
+                searchField.setVisible(true);
+                bookCombo.setVisible(false);
             }
         });
 
@@ -550,37 +647,75 @@ public class LibraryManagementSystem extends JFrame {
                 String selectedEntity = (String) entityCombo.getSelectedItem();
                 String selectedAttribute = (String) attributeCombo.getSelectedItem();
                 String query;
-                if ("Book".equals(selectedEntity)) {
-                    tableModel.setColumnIdentifiers(new String[]{"Book ID", "Title", "Authors", "Publication Date", "Total Copies", "Available Copies"});
+                if ("Books".equals(selectedEntity)) {
+                    tableModel.setColumnIdentifiers(new String[]{"Book ID", "Title", "Authors", "Publication Date"});
                     if ("Title".equals(selectedAttribute)) {
-                        query = "SELECT b.Book_Id, b.Title, GROUP_CONCAT(CONCAT(a.First_name, ' ', a.Last_name) SEPARATOR ', ') AS Authors, b.Publication_date, " +
-                                "(SELECT COUNT(*) FROM Book_copy bc WHERE bc.Book_Id = b.Book_Id) as total_copies, " +
-                                "(SELECT COUNT(DISTINCT bc.Copy_Id) FROM Book_copy bc WHERE bc.Book_Id = b.Book_Id AND bc.Status = 'AVAILABLE') as available_copies " +
+                        query = "SELECT b.Book_Id, b.Title, GROUP_CONCAT(CONCAT(a.First_name, ' ', a.Last_name) SEPARATOR ', ') AS Authors, b.Publication_date " +
                                 "FROM Book b " +
                                 "LEFT JOIN WROTE w ON b.Book_Id = w.Book_Book_Id " +
                                 "LEFT JOIN Author a ON w.Author_Author_Id = a.Author_Id " +
                                 "WHERE b.Title LIKE ? " +
                                 "GROUP BY b.Book_Id";
                     } else if ("Author".equals(selectedAttribute)) {
-                        query = "SELECT b.Book_Id, b.Title, GROUP_CONCAT(CONCAT(a.First_name, ' ', a.Last_name) SEPARATOR ', ') AS Authors, b.Publication_date, " +
-                                "(SELECT COUNT(*) FROM Book_copy bc WHERE bc.Book_Id = b.Book_Id) as total_copies, " +
-                                "(SELECT COUNT(DISTINCT bc.Copy_Id) FROM Book_copy bc WHERE bc.Book_Id = b.Book_Id AND bc.Status = 'AVAILABLE') as available_copies " +
+                        query = "SELECT b.Book_Id, b.Title, GROUP_CONCAT(CONCAT(a.First_name, ' ', a.Last_name) SEPARATOR ', ') AS Authors, b.Publication_date " +
                                 "FROM Book b " +
                                 "LEFT JOIN WROTE w ON b.Book_Id = w.Book_Book_Id " +
                                 "LEFT JOIN Author a ON w.Author_Author_Id = a.Author_Id " +
                                 "WHERE a.First_name LIKE ? OR a.Last_name LIKE ? " +
                                 "GROUP BY b.Book_Id";
                     } else {
-                        query = "SELECT b.Book_Id, b.Title, GROUP_CONCAT(CONCAT(a.First_name, ' ', a.Last_name) SEPARATOR ', ') AS Authors, b.Publication_date, " +
-                                "(SELECT COUNT(*) FROM Book_copy bc WHERE bc.Book_Id = b.Book_Id) as total_copies, " +
-                                "(SELECT COUNT(DISTINCT bc.Copy_Id) FROM Book_copy bc WHERE bc.Book_Id = b.Book_Id AND bc.Status = 'AVAILABLE') as available_copies " +
+                        query = "SELECT b.Book_Id, b.Title, GROUP_CONCAT(CONCAT(a.First_name, ' ', a.Last_name) SEPARATOR ', ') AS Authors, b.Publication_date " +
                                 "FROM Book b " +
                                 "LEFT JOIN WROTE w ON b.Book_Id = w.Book_Book_Id " +
                                 "LEFT JOIN Author a ON w.Author_Author_Id = a.Author_Id " +
                                 "WHERE b.Publication_date LIKE ? " +
                                 "GROUP BY b.Book_Id";
                     }
-                } else if ("Author".equals(selectedEntity)) {
+                    PreparedStatement stmt = conn.prepareStatement(query);
+                    String searchTerm = "%" + searchField.getText() + "%";
+                    stmt.setString(1, searchTerm);
+                    if ("Author".equals(selectedAttribute)) {
+                        stmt.setString(2, searchTerm);
+                    }
+                    ResultSet rs = stmt.executeQuery();
+
+                    // Clear previous results
+                    tableModel.setRowCount(0);
+
+                    // Add results to table
+                    while (rs.next()) {
+                        int bookId = rs.getInt("Book_Id");
+                        String title = rs.getString("Title");
+                        String authors = rs.getString("Authors");
+                        Date publicationDate = rs.getDate("Publication_date");
+                        tableModel.addRow(new Object[]{bookId, title, authors, publicationDate});
+                    }
+                } else if ("Book Copies".equals(selectedEntity)) {
+                    tableModel.setColumnIdentifiers(new String[]{"Copy ID", "Title", "Print Date", "Status"});
+                    String selectedBook = (String) bookCombo.getSelectedItem();
+                    if (selectedBook != null) {
+                        int bookId = Integer.parseInt(selectedBook.split(" - ")[1]);
+                        query = "SELECT bc.Copy_Id, b.Title, bc.Print_date, bc.Status " +
+                                "FROM Book_copy bc " +
+                                "JOIN Book b ON bc.Book_Id = b.Book_Id " +
+                                "WHERE bc.Book_Id = ?";
+                        PreparedStatement stmt = conn.prepareStatement(query);
+                        stmt.setInt(1, bookId);
+                        ResultSet rs = stmt.executeQuery();
+
+                        // Clear previous results
+                        tableModel.setRowCount(0);
+
+                        // Add results to table
+                        while (rs.next()) {
+                            int copyId = rs.getInt("Copy_Id");
+                            String title = rs.getString("Title");
+                            Date printDate = rs.getDate("Print_date");
+                            String status = rs.getString("Status");
+                            tableModel.addRow(new Object[]{copyId, title, printDate, status});
+                        }
+                    }
+                } else if ("Authors".equals(selectedEntity)) {
                     tableModel.setColumnIdentifiers(new String[]{"Author ID", "First Name", "Last Name", "Bio", "Total Books"});
                     if ("First Name".equals(selectedAttribute)) {
                         query = "SELECT a.Author_Id, a.First_name, a.Last_name, a.Bio, COUNT(DISTINCT w.Book_Book_Id) as total_books " +
@@ -601,7 +736,24 @@ public class LibraryManagementSystem extends JFrame {
                                 "WHERE a.Bio LIKE ? " +
                                 "GROUP BY a.Author_Id";
                     }
-                } else {
+                    PreparedStatement stmt = conn.prepareStatement(query);
+                    String searchTerm = "%" + searchField.getText() + "%";
+                    stmt.setString(1, searchTerm);
+                    ResultSet rs = stmt.executeQuery();
+
+                    // Clear previous results
+                    tableModel.setRowCount(0);
+
+                    // Add results to table
+                    while (rs.next()) {
+                        int authorId = rs.getInt("Author_Id");
+                        String firstName = rs.getString("First_name");
+                        String lastName = rs.getString("Last_name");
+                        String bio = rs.getString("Bio");
+                        int totalBooks = rs.getInt("total_books");
+                        tableModel.addRow(new Object[]{authorId, firstName, lastName, bio, totalBooks});
+                    }
+                } else if ("Members".equals(selectedEntity)) {
                     tableModel.setColumnIdentifiers(new String[]{"Member ID", "First Name", "Last Name", "Email", "Phone Number", "Issue Date", "Expiry Date"});
                     if ("First Name".equals(selectedAttribute)) {
                         query = "SELECT m.Member_Id, m.First_name, m.Last_name, m.Email, m.Phone_number, lc.Issue_date, lc.Expiry_date " +
@@ -624,38 +776,16 @@ public class LibraryManagementSystem extends JFrame {
                                 "LEFT JOIN Library_card lc ON m.Library_card_Id = lc.Card_Id " +
                                 "WHERE m.Phone_number LIKE ?";
                     }
-                }
+                    PreparedStatement stmt = conn.prepareStatement(query);
+                    String searchTerm = "%" + searchField.getText() + "%";
+                    stmt.setString(1, searchTerm);
+                    ResultSet rs = stmt.executeQuery();
 
-                PreparedStatement stmt = conn.prepareStatement(query);
-                String searchTerm = "%" + searchField.getText() + "%";
-                stmt.setString(1, searchTerm);
-                if ("Book".equals(selectedEntity) && "Author".equals(selectedAttribute)) {
-                    stmt.setString(2, searchTerm);
-                }
+                    // Clear previous results
+                    tableModel.setRowCount(0);
 
-                ResultSet rs = stmt.executeQuery();
-
-                // Clear previous results
-                tableModel.setRowCount(0);
-
-                // Add results to table
-                while (rs.next()) {
-                    if ("Book".equals(selectedEntity)) {
-                        int bookId = rs.getInt("Book_Id");
-                        String title = rs.getString("Title");
-                        String authors = rs.getString("Authors");
-                        Date publicationDate = rs.getDate("Publication_date");
-                        int totalCopies = rs.getInt("total_copies");
-                        int availableCopies = rs.getInt("available_copies");
-                        tableModel.addRow(new Object[]{bookId, title, authors, publicationDate, totalCopies, availableCopies});
-                    } else if ("Author".equals(selectedEntity)) {
-                        int authorId = rs.getInt("Author_Id");
-                        String firstName = rs.getString("First_name");
-                        String lastName = rs.getString("Last_name");
-                        String bio = rs.getString("Bio");
-                        int totalBooks = rs.getInt("total_books");
-                        tableModel.addRow(new Object[]{authorId, firstName, lastName, bio, totalBooks});
-                    } else {
+                    // Add results to table
+                    while (rs.next()) {
                         int memberId = rs.getInt("Member_Id");
                         String firstName = rs.getString("First_name");
                         String lastName = rs.getString("Last_name");
@@ -666,7 +796,6 @@ public class LibraryManagementSystem extends JFrame {
                         tableModel.addRow(new Object[]{memberId, firstName, lastName, email, phone, issueDate, expiryDate});
                     }
                 }
-
             } catch (SQLException ex) {
                 JOptionPane.showMessageDialog(panel, "Error searching: " + ex.getMessage());
             }
@@ -690,43 +819,55 @@ public class LibraryManagementSystem extends JFrame {
         gbc.gridx = 0; gbc.gridy = 1;
         panel.add(new JLabel("Select Book:"), gbc);
         gbc.gridx = 1;
-        panel.add(bookCopyComboBorrow, gbc);
+        panel.add(bookComboBorrowSpecific, gbc);
+        
+        gbc.gridx = 0; gbc.gridy = 2;
+        panel.add(new JLabel("Select Copy:"), gbc);
+        gbc.gridx = 1;
+        panel.add(bookCopyComboBorrowSpecific, gbc);
         
         JButton borrowButton = new JButton("Borrow Book");
-        gbc.gridx = 0; gbc.gridy = 2;
+        gbc.gridx = 0; gbc.gridy = 3;
         gbc.gridwidth = 2;
         panel.add(borrowButton, gbc);
 
-        
-        
+        bookComboBorrowSpecific.addActionListener(e -> {
+            bookCopyComboBorrowSpecific.removeAllItems();
+            String selectedBook = (String) bookComboBorrowSpecific.getSelectedItem();
+            if (selectedBook != null) {
+                int bookId = Integer.parseInt(selectedBook.split(" - ")[1]);
+                try {
+                    PreparedStatement stmt = conn.prepareStatement(
+                        "SELECT Copy_Id, Print_date FROM Book_copy WHERE Book_Id = ? AND Status = 'AVAILABLE'"
+                    );
+                    stmt.setInt(1, bookId);
+                    ResultSet rs = stmt.executeQuery();
+                    while (rs.next()) {
+                        bookCopyComboBorrowSpecific.addItem("Copy ID: " + rs.getInt("Copy_Id") + " (Print Date: " + rs.getDate("Print_date") + ")");
+                    }
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
+
         borrowButton.addActionListener(e -> {
             try {
                 String memberSelection = (String) memberComboBorrow.getSelectedItem();
-                String bookSelection = (String) bookCopyComboBorrow.getSelectedItem();
-                
-                if (memberSelection == null || bookSelection == null) {
-                    JOptionPane.showMessageDialog(this, "Please select both member and book");
+                String bookSelection = (String) bookComboBorrowSpecific.getSelectedItem();
+                String copySelection = (String) bookCopyComboBorrowSpecific.getSelectedItem();
+
+                if (memberSelection == null || bookSelection == null || copySelection == null) {
+                    JOptionPane.showMessageDialog(this, "Please select member, book, and copy");
                     return;
                 }
-                
+
                 // Get member ID
-                PreparedStatement memberStmt = conn.prepareStatement(
-                    "SELECT Member_Id FROM Member WHERE CONCAT(First_name, ' ', Last_name) = ?"
-                );
-                memberStmt.setString(1, memberSelection);
-                ResultSet memberRs = memberStmt.executeQuery();
-                memberRs.next();
-                int memberId = memberRs.getInt("Member_Id");
-                
-                // Get book ID
-                PreparedStatement bookStmt = conn.prepareStatement(
-                    "SELECT Book_Id FROM Book WHERE Title = ?"
-                );
-                bookStmt.setString(1, bookSelection);
-                ResultSet bookRs = bookStmt.executeQuery();
-                bookRs.next();
-                int bookId = bookRs.getInt("Book_Id");
-                
+                int memberId = Integer.parseInt(memberSelection.split(" - ")[1]);
+
+                // Get book copy ID
+                int copyId = Integer.parseInt(copySelection.split(" ")[2]);
+
                 // Check if member has any overdue books
                 PreparedStatement overdueStmt = conn.prepareStatement(
                     "SELECT COUNT(*) FROM Book_copy WHERE Borrower_Id = ? AND Return_date < CURRENT_DATE"
@@ -738,38 +879,24 @@ public class LibraryManagementSystem extends JFrame {
                     JOptionPane.showMessageDialog(this, "Member has overdue books!");
                     return;
                 }
-                
-                // Get available copy
-                PreparedStatement copyStmt = conn.prepareStatement(
-                    "SELECT Copy_Id FROM Book_copy WHERE Book_Id = ? AND Status = 'AVAILABLE' LIMIT 1"
+
+                // Update book copy
+                PreparedStatement updateStmt = conn.prepareStatement(
+                    "UPDATE Book_copy SET Borrower_Id = ?, Borrow_date = CURRENT_DATE, " +
+                    "Return_date = DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY), Status = 'BORROWED' " +
+                    "WHERE Copy_Id = ?"
                 );
-                copyStmt.setInt(1, bookId);
-                ResultSet copyRs = copyStmt.executeQuery();
-                
-                if (copyRs.next()) {
-                    int copyId = copyRs.getInt("Copy_Id");
-                    
-                    // Update book copy
-                    PreparedStatement updateStmt = conn.prepareStatement(
-                        "UPDATE Book_copy SET Borrower_Id = ?, Borrow_date = CURRENT_DATE, " +
-                        "Return_date = DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY), Status = 'BORROWED' " +
-                        "WHERE Copy_Id = ?"
-                    );
-                    updateStmt.setInt(1, memberId);
-                    updateStmt.setInt(2, copyId);
-                    updateStmt.executeUpdate();
-                    
-                    JOptionPane.showMessageDialog(this, "Book borrowed successfully!");
-                    refreshComboBoxes(); // Refresh combo boxes after borrowing a book
-                } else {
-                    JOptionPane.showMessageDialog(this, "No copies available!");
-                }
-                refreshComboBoxes();
+                updateStmt.setInt(1, memberId);
+                updateStmt.setInt(2, copyId);
+                updateStmt.executeUpdate();
+
+                JOptionPane.showMessageDialog(this, "Book borrowed successfully!");
+                refreshComboBoxes(); // Refresh combo boxes after borrowing a book
             } catch (SQLException ex) {
                 JOptionPane.showMessageDialog(this, "Error borrowing book: " + ex.getMessage());
             }
         });
-        
+
         return panel;
     }
     
@@ -805,38 +932,18 @@ public class LibraryManagementSystem extends JFrame {
                     return;
                 }
 
-                // Get member ID
-                PreparedStatement memberStmt = conn.prepareStatement(
-                    "SELECT Member_Id FROM Member WHERE CONCAT(First_name, ' ', Last_name) = ?"
-                );
-                memberStmt.setString(1, memberSelection);
-                ResultSet memberRs = memberStmt.executeQuery();
-                memberRs.next();
-                int memberId = memberRs.getInt("Member_Id");
-
                 // Get book copy ID
-                PreparedStatement copyStmt = conn.prepareStatement(
-                    "SELECT Copy_Id FROM Book_copy WHERE Book_Id = (SELECT Book_Id FROM Book WHERE Title = ?) AND Borrower_Id = ? AND Status = 'BORROWED'"
+                int copyId = Integer.parseInt(bookSelection.split(" - ")[1].split(" ")[0]);
+
+                // Update book copy status to 'AVAILABLE'
+                PreparedStatement updateStmt = conn.prepareStatement(
+                    "UPDATE Book_copy SET Borrower_Id = NULL, Borrow_date = NULL, Return_date = NULL, Status = 'AVAILABLE' WHERE Copy_Id = ?"
                 );
-                copyStmt.setString(1, bookSelection);
-                copyStmt.setInt(2, memberId);
-                ResultSet copyRs = copyStmt.executeQuery();
+                updateStmt.setInt(1, copyId);
+                updateStmt.executeUpdate();
 
-                if (copyRs.next()) {
-                    int copyId = copyRs.getInt("Copy_Id");
-
-                    // Update book copy status to 'AVAILABLE'
-                    PreparedStatement updateStmt = conn.prepareStatement(
-                        "UPDATE Book_copy SET Borrower_Id = NULL, Borrow_date = NULL, Return_date = NULL, Status = 'AVAILABLE' WHERE Copy_Id = ?"
-                    );
-                    updateStmt.setInt(1, copyId);
-                    updateStmt.executeUpdate();
-
-                    JOptionPane.showMessageDialog(this, "Book returned successfully!");
-                    refreshComboBoxes(); // Refresh combo boxes after returning a book
-                } else {
-                    JOptionPane.showMessageDialog(this, "No borrowed copies found for the selected book and member!");
-                }
+                JOptionPane.showMessageDialog(this, "Book returned successfully!");
+                refreshComboBoxes(); // Refresh combo boxes after returning a book
             } catch (SQLException ex) {
                 JOptionPane.showMessageDialog(this, "Error returning book: " + ex.getMessage());
             }
@@ -851,52 +958,63 @@ public class LibraryManagementSystem extends JFrame {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         
+        JTextField copyIdField = new JTextField(20);
         JTextField printDateField = new JTextField(20);
         refreshComboBoxes();
         // Populate book combo box
         gbc.gridx = 0; gbc.gridy = 0;
+        panel.add(new JLabel("Copy ID:"), gbc);
+        gbc.gridx = 1;
+        panel.add(copyIdField, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 1;
         panel.add(new JLabel("Select Book:"), gbc);
         gbc.gridx = 1;
-        panel.add(bookComboBorrow, gbc);
+        panel.add(bookComboCopy, gbc);
         
-        gbc.gridx = 0; gbc.gridy = 1;
+        gbc.gridx = 0; gbc.gridy = 2;
         panel.add(new JLabel("Print Date (YYYY-MM-DD):"), gbc);
         gbc.gridx = 1;
         panel.add(printDateField, gbc);
         
         JButton addButton = new JButton("Add Copy");
-        gbc.gridx = 0; gbc.gridy = 2;
+        gbc.gridx = 0; gbc.gridy = 3;
         gbc.gridwidth = 2;
         panel.add(addButton, gbc);
         
         addButton.addActionListener(e -> {
             try {
-                String bookSelection = (String) bookComboBorrow.getSelectedItem();
+                String bookSelection = (String) bookComboCopy.getSelectedItem();
                 if (bookSelection == null) {
                     JOptionPane.showMessageDialog(this, "Please select a book");
                     return;
                 }
                 
-                int bookId = Integer.parseInt(bookSelection.split(" - ")[0]);
+                int bookId = Integer.parseInt(bookSelection.split(" - ")[1]);
                 
                 PreparedStatement stmt = conn.prepareStatement(
-                    "INSERT INTO Book_copy (Book_Id, Print_date, Status) VALUES (?, ?, 'AVAILABLE')"
+                    "INSERT INTO Book_copy (Copy_Id, Book_Id, Print_date, Status) VALUES (?, ?, ?, 'AVAILABLE')"
                 );
-                stmt.setInt(1, bookId);
-                stmt.setDate(2, Date.valueOf(printDateField.getText()));
+                stmt.setInt(1, Integer.parseInt(copyIdField.getText()));
+                stmt.setInt(2, bookId);
+                stmt.setDate(3, Date.valueOf(printDateField.getText()));
                 stmt.executeUpdate();
                 
                 JOptionPane.showMessageDialog(this, "Copy added successfully!");
+                copyIdField.setText("");
                 printDateField.setText("");
                 refreshComboBoxes(); // Refresh combo boxes after adding a copy
                 
             } catch (SQLException ex) {
-                JOptionPane.showMessageDialog(this, "Error adding copy: " + ex.getMessage());
+                if (ex.getErrorCode() == 1062) { // Duplicate entry error code
+                    JOptionPane.showMessageDialog(panel, "Copy ID already exists. Please enter a unique ID.", "Input Error", JOptionPane.ERROR_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Error adding copy: " + ex.getMessage());
+                }
             } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(this, "Invalid book selection format: " + ex.getMessage());
+                JOptionPane.showMessageDialog(panel, "Invalid Copy ID format.", "Input Error", JOptionPane.ERROR_MESSAGE);
             } catch (IllegalArgumentException ex) {
                 JOptionPane.showMessageDialog(panel, "Invalid date format.", "Input Error", JOptionPane.ERROR_MESSAGE);
-                return;
             }
         });
         
@@ -909,27 +1027,33 @@ public class LibraryManagementSystem extends JFrame {
         gbc.insets = new Insets(5, 5, 5, 5);
         
         // Components for adding authors
+        JTextField authorIdField = new JTextField(20);
         JTextField firstNameField = new JTextField(20);
         JTextField lastNameField = new JTextField(20);
         JTextArea bioArea = new JTextArea(3, 20);
         
         gbc.gridx = 0; gbc.gridy = 0;
+        panel.add(new JLabel("Author ID:"), gbc);
+        gbc.gridx = 1;
+        panel.add(authorIdField, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 1;
         panel.add(new JLabel("First Name:"), gbc);
         gbc.gridx = 1;
         panel.add(firstNameField, gbc);
         
-        gbc.gridx = 0; gbc.gridy = 1;
+        gbc.gridx = 0; gbc.gridy = 2;
         panel.add(new JLabel("Last Name:"), gbc);
         gbc.gridx = 1;
         panel.add(lastNameField, gbc);
         
-        gbc.gridx = 0; gbc.gridy = 2;
+        gbc.gridx = 0; gbc.gridy = 3;
         panel.add(new JLabel("Bio:"), gbc);
         gbc.gridx = 1;
         panel.add(new JScrollPane(bioArea), gbc);
         
         JButton addButton = new JButton("Add Author");
-        gbc.gridx = 0; gbc.gridy = 3;
+        gbc.gridx = 0; gbc.gridy = 4;
         gbc.gridwidth = 2;
         panel.add(addButton, gbc);
         
@@ -949,16 +1073,18 @@ public class LibraryManagementSystem extends JFrame {
             	
                 // Insert author
                 PreparedStatement authorStmt = conn.prepareStatement(
-                    "INSERT INTO Author (First_name, Last_name, Bio) VALUES (?, ?, ?)"
+                    "INSERT INTO Author (Author_Id, First_name, Last_name, Bio) VALUES (?, ?, ?, ?)"
                 );
-                authorStmt.setString(1, firstNameField.getText());
-                authorStmt.setString(2, lastNameField.getText());
-                authorStmt.setString(3, bioArea.getText());
+                authorStmt.setInt(1, Integer.parseInt(authorIdField.getText()));
+                authorStmt.setString(2, firstNameField.getText());
+                authorStmt.setString(3, lastNameField.getText());
+                authorStmt.setString(4, bioArea.getText());
                 authorStmt.executeUpdate();
                 
                 JOptionPane.showMessageDialog(this, "Author added successfully!");
                 
                 // Clear fields
+                authorIdField.setText("");
                 firstNameField.setText("");
                 lastNameField.setText("");
                 bioArea.setText("");
@@ -966,7 +1092,13 @@ public class LibraryManagementSystem extends JFrame {
                 refreshComboBoxes(); // Refresh combo boxes after adding an author
                 
             } catch (SQLException ex) {
-                JOptionPane.showMessageDialog(this, "Error adding author: " + ex.getMessage());
+                if (ex.getErrorCode() == 1062) { // Duplicate entry error code
+                    JOptionPane.showMessageDialog(panel, "Author ID already exists. Please enter a unique ID.", "Input Error", JOptionPane.ERROR_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Error adding author: " + ex.getMessage());
+                }
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(panel, "Invalid Author ID format.", "Input Error", JOptionPane.ERROR_MESSAGE);
             }
         });
         
@@ -977,77 +1109,148 @@ public class LibraryManagementSystem extends JFrame {
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
-        
-        JComboBox<String> entityCombo = new JComboBox<>(new String[]{"Author", "Book", "Member"});
-        JTextField idField = new JTextField(20);
+
+        JComboBox<String> entityCombo = new JComboBox<>(new String[]{"Author", "Book", "Member", "Book Copy"});
+        JComboBox<String> itemCombo = new JComboBox<>();
+        JComboBox<String> bookCombo = new JComboBox<>();
+        JLabel selectBookLabel = new JLabel("Select Book:");
         JButton updateButton = new JButton("Update");
         JButton deleteButton = new JButton("Delete");
-        
+
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Select Entity:"), gbc);
         gbc.gridx = 1;
         panel.add(entityCombo, gbc);
-        
+
         gbc.gridx = 0; gbc.gridy = 1;
-        panel.add(new JLabel("ID:"), gbc);
+        panel.add(selectBookLabel, gbc);
         gbc.gridx = 1;
-        panel.add(idField, gbc);
-        
+        panel.add(bookCombo, gbc);
+
         gbc.gridx = 0; gbc.gridy = 2;
-        gbc.gridwidth = 2;
-        panel.add(updateButton, gbc);
-        
+        panel.add(new JLabel("Select Item:"), gbc);
+        gbc.gridx = 1;
+        panel.add(itemCombo, gbc);
+
         gbc.gridx = 0; gbc.gridy = 3;
         gbc.gridwidth = 2;
+        panel.add(updateButton, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 4;
+        gbc.gridwidth = 2;
         panel.add(deleteButton, gbc);
-        
+
+        selectBookLabel.setVisible(false);
+        bookCombo.setVisible(false);
+
+        entityCombo.addActionListener(e -> {
+            itemCombo.removeAllItems();
+            bookCombo.removeAllItems();
+            String selectedEntity = (String) entityCombo.getSelectedItem();
+            boolean isBookCopy = "Book Copy".equals(selectedEntity);
+            selectBookLabel.setVisible(isBookCopy);
+            bookCombo.setVisible(isBookCopy);
+            try {
+                Statement stmt = conn.createStatement();
+                ResultSet rs;
+                if ("Author".equals(selectedEntity)) {
+                    rs = stmt.executeQuery("SELECT Author_Id, First_name, Last_name FROM Author");
+                    while (rs.next()) {
+                        itemCombo.addItem(rs.getString("First_name") + " " + rs.getString("Last_name") + " - " + rs.getInt("Author_Id"));
+                    }
+                } else if ("Book".equals(selectedEntity)) {
+                    rs = stmt.executeQuery("SELECT Book_Id, Title FROM Book");
+                    while (rs.next()) {
+                        itemCombo.addItem(rs.getString("Title") + " - " + rs.getInt("Book_Id"));
+                    }
+                } else if ("Member".equals(selectedEntity)) {
+                    rs = stmt.executeQuery("SELECT Member_Id, First_name, Last_name FROM Member");
+                    while (rs.next()) {
+                        itemCombo.addItem(rs.getString("First_name") + " " + rs.getString("Last_name") + " - " + rs.getInt("Member_Id"));
+                    }
+                } else if ("Book Copy".equals(selectedEntity)) {
+                    rs = stmt.executeQuery("SELECT Book_Id, Title FROM Book");
+                    while (rs.next()) {
+                        bookCombo.addItem(rs.getString("Title") + " - " + rs.getInt("Book_Id"));
+                    }
+                }
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+            }
+        });
+
+        bookCombo.addActionListener(e -> {
+            itemCombo.removeAllItems();
+            String selectedBook = (String) bookCombo.getSelectedItem();
+            if (selectedBook != null) {
+                int bookId = Integer.parseInt(selectedBook.split(" - ")[1]);
+                try {
+                    PreparedStatement stmt = conn.prepareStatement(
+                        "SELECT Copy_Id, Print_date FROM Book_copy WHERE Book_Id = ?"
+                    );
+                    stmt.setInt(1, bookId);
+                    ResultSet rs = stmt.executeQuery();
+                    while (rs.next()) {
+                        itemCombo.addItem("Copy ID: " + rs.getInt("Copy_Id") + " (Print Date: " + rs.getDate("Print_date") + ")");
+                    }
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
+
         updateButton.addActionListener(e -> {
             String entity = (String) entityCombo.getSelectedItem();
-            try {
-            	int id = Integer.parseInt(idField.getText());
-            	 switch (entity) {
-                 case "Author":
-                     updateAuthor(id);
-                     break;
-                 case "Book":
-                     updateBook(id);
-                     break;
-                 case "Member":
-                     updateMember(id);
-                     break;
-             }
-            }catch(NumberFormatException ee) {
-            	 JOptionPane.showMessageDialog(panel, "Please Enter number.", "Input Error", JOptionPane.ERROR_MESSAGE);
-                 return;
-            }
-            
-        });
-        
-        deleteButton.addActionListener(e -> {
-            String entity = (String) entityCombo.getSelectedItem();
-            try {
-            	 int id = Integer.parseInt(idField.getText());
-                 switch (entity) {
-                     case "Author":
-                         deleteAuthor(id);
-                         break;
-                     case "Book":
-                         deleteBook(id);
-                         break;
-                     case "Member":
-                         deleteMember(id);
-                         break;
-                 }
-            }catch(NumberFormatException ee) {
-            	JOptionPane.showMessageDialog(panel, "Please Enter number.", "Input Error", JOptionPane.ERROR_MESSAGE);
+            String selectedItem = (String) itemCombo.getSelectedItem();
+            if (selectedItem == null) {
+                JOptionPane.showMessageDialog(panel, "Please select an item to update.");
                 return;
             }
-           
+            int id = Integer.parseInt(selectedItem.split(" ")[2]);
+            switch (entity) {
+                case "Author":
+                    updateAuthor(id);
+                    break;
+                case "Book":
+                    updateBook(id);
+                    break;
+                case "Member":
+                    updateMember(id);
+                    break;
+                case "Book Copy":
+                    updateBookCopy(id);
+                    break;
+            }
         });
-        
+
+        deleteButton.addActionListener(e -> {
+            String entity = (String) entityCombo.getSelectedItem();
+            String selectedItem = (String) itemCombo.getSelectedItem();
+            if (selectedItem == null) {
+                JOptionPane.showMessageDialog(panel, "Please select an item to delete.");
+                return;
+            }
+            int id = Integer.parseInt(selectedItem.split(" ")[2]);
+            switch (entity) {
+                case "Author":
+                    deleteAuthor(id);
+                    break;
+                case "Book":
+                    deleteBook(id);
+                    break;
+                case "Member":
+                    deleteMember(id);
+                    break;
+                case "Book Copy":
+                    deleteBookCopy(id);
+                    break;
+            }
+            refreshComboBoxes();
+        });
+
         return panel;
     }
-    
+
     private void updateAuthor(int id) {
         try {
             // Check if the author exists
@@ -1263,6 +1466,69 @@ public class LibraryManagementSystem extends JFrame {
     }
 
     
+    private void updateBookCopy(int id) {
+        try {
+            // Check if the book copy exists
+            PreparedStatement checkStmt = conn.prepareStatement(
+                "SELECT Copy_Id, Print_date, Status FROM Book_copy WHERE Copy_Id = ?"
+            );
+            checkStmt.setInt(1, id);
+            ResultSet rs = checkStmt.executeQuery();
+
+            if (!rs.next()) {
+                JOptionPane.showMessageDialog(this, "Book copy not found!");
+                return;
+            }
+
+            // Retrieve current data for the book copy
+            String currentPrintDate = rs.getDate("Print_date").toString();
+            String currentStatus = rs.getString("Status");
+
+            // Input fields pre-filled with current data
+            JTextField printDateField = new JTextField(currentPrintDate, 20);
+            JComboBox<String> statusCombo = new JComboBox<>(new String[]{"AVAILABLE", "BORROWED"});
+            statusCombo.setSelectedItem(currentStatus);
+
+            // Set up the panel for input
+            JPanel panel = new JPanel(new GridBagLayout());
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.insets = new Insets(5, 5, 5, 5);
+
+            gbc.gridx = 0; gbc.gridy = 0;
+            panel.add(new JLabel("Print Date (YYYY-MM-DD):"), gbc);
+            gbc.gridx = 1;
+            panel.add(printDateField, gbc);
+
+            gbc.gridx = 0; gbc.gridy = 1;
+            panel.add(new JLabel("Status:"), gbc);
+            gbc.gridx = 1;
+            panel.add(statusCombo, gbc);
+
+            // Show dialog
+            int result = JOptionPane.showConfirmDialog(this, panel, "Update Book Copy", JOptionPane.OK_CANCEL_OPTION);
+            if (result == JOptionPane.OK_OPTION) {
+                try {
+                    // Update the book copy with new values
+                    PreparedStatement stmt = conn.prepareStatement(
+                        "UPDATE Book_copy SET Print_date = ?, Status = ? WHERE Copy_Id = ?"
+                    );
+                    stmt.setDate(1, Date.valueOf(printDateField.getText()));
+                    stmt.setString(2, (String) statusCombo.getSelectedItem());
+                    stmt.setInt(3, id);
+                    stmt.executeUpdate();
+                    JOptionPane.showMessageDialog(this, "Book copy updated successfully!");
+                    refreshComboBoxes();
+                } catch (SQLException ex) {
+                    JOptionPane.showMessageDialog(this, "Error updating book copy: " + ex.getMessage());
+                }
+            }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Error retrieving book copy details: " + ex.getMessage());
+        } catch (IllegalArgumentException ee) {
+            JOptionPane.showMessageDialog(this, "Error updating: check information integrity", "Input Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
     private void deleteAuthor(int id) {
         try {
             // Check if the author exists and retrieve details
@@ -1387,6 +1653,13 @@ public class LibraryManagementSystem extends JFrame {
             );
 
             if (result == JOptionPane.YES_OPTION) {
+                // Set the status of borrowed books to "LOST"
+                PreparedStatement updateBooksStmt = conn.prepareStatement(
+                    "UPDATE Book_copy SET Status = 'LOST' WHERE Borrower_Id = ? AND Status = 'BORROWED'"
+                );
+                updateBooksStmt.setInt(1, id);
+                updateBooksStmt.executeUpdate();
+
                 // Delete the library card associated with the member
                 PreparedStatement cardStmt = conn.prepareStatement(
                     "DELETE FROM Library_card WHERE Card_Id = (SELECT Library_card_Id FROM Member WHERE Member_Id = ?)"
@@ -1409,16 +1682,50 @@ public class LibraryManagementSystem extends JFrame {
         }
     }
 
+    private void deleteBookCopy(int id) {
+        try {
+            // Check if the book copy exists and retrieve details
+            PreparedStatement checkStmt = conn.prepareStatement(
+                "SELECT Copy_Id, Title FROM Book_copy JOIN Book ON Book_copy.Book_Id = Book.Book_Id WHERE Copy_Id = ?"
+            );
+            checkStmt.setInt(1, id);
+            ResultSet rs = checkStmt.executeQuery();
+
+            if (!rs.next()) {
+                JOptionPane.showMessageDialog(this, "Book copy not found!");
+                return;
+            }
+
+            // Retrieve current details of the book copy
+            String title = rs.getString("Title");
+
+            // Show confirmation dialog
+            int result = JOptionPane.showConfirmDialog(
+                this,
+                "Are you sure you want to delete the book copy: \n" +
+                "Title: " + title + "\nCopy ID: " + id,
+                "Confirm Delete",
+                JOptionPane.YES_NO_OPTION
+            );
+
+            if (result == JOptionPane.YES_OPTION) {
+                // Proceed with deletion
+                PreparedStatement stmt = conn.prepareStatement(
+                    "DELETE FROM Book_copy WHERE Copy_Id = ?"
+                );
+                stmt.setInt(1, id);
+                stmt.executeUpdate();
+                JOptionPane.showMessageDialog(this, "Book copy deleted successfully!");
+                refreshComboBoxes();
+            }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Error deleting book copy: " + ex.getMessage());
+        }
+    }
+
     
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             try {
                 Class.forName("com.mysql.cj.jdbc.Driver");
-                new LibraryManagementSystem().setVisible(true);
-            } catch (ClassNotFoundException e) {
-                JOptionPane.showMessageDialog(null, "MySQL JDBC Driver not found!");
-                System.exit(1);
-            }
-        });
-    }
-}
+                new LibraryManagementSystem().setVisible(true);            } catch (ClassNotFoundException e) {                JOptionPane.showMessageDialog(null, "MySQL JDBC Driver not found!");                System.exit(1);            }        });    }}
