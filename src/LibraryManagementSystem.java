@@ -193,20 +193,20 @@ public class LibraryManagementSystem extends JFrame {
                 "`Borrower_Id` INT NULL," +
                 "`Borrow_date` DATE NULL," +
                 "`Return_date` DATE NULL," +
-                "`Status` ENUM('AVAILABLE', 'BORROWED', 'DAMAGED') DEFAULT 'AVAILABLE'," +
+                "`Status` ENUM('AVAILABLE', 'BORROWED') DEFAULT 'AVAILABLE'," +
                 "PRIMARY KEY (`Copy_Id`, `Book_Id`)," +
                 "INDEX `fk_Book_copy_Book1_idx` (`Book_Id` ASC)," +
                 "INDEX `fk_Book_copy_Member1_idx` (`Borrower_Id` ASC)," +
                 "CONSTRAINT `fk_Book_copy_Book1` " +
                 "FOREIGN KEY (`Book_Id`) " +
                 "REFERENCES `Book` (`Book_Id`) " +
-                "ON DELETE NO ACTION " + // Delete book copies when a book is deleted
-                "ON UPDATE NO ACTION," +
+                "ON DELETE CASCADE " + // Delete book copies when a book is deleted
+                "ON UPDATE CASCADE," +
                 "CONSTRAINT `fk_Book_copy_Member1` " +
                 "FOREIGN KEY (`Borrower_Id`) " +
                 "REFERENCES `Member` (`Member_Id`) " +
-                "ON DELETE NO ACTION " +
-                "ON UPDATE NO ACTION)" +
+                "ON DELETE SET NULL " +
+                "ON UPDATE CASCADE)" +
                 "ENGINE = InnoDB",
                 
                 "CREATE TABLE IF NOT EXISTS `WROTE` (" +
@@ -223,8 +223,8 @@ public class LibraryManagementSystem extends JFrame {
                 "CONSTRAINT `fk_Author_has_Book_Book1` " +
                 "FOREIGN KEY (`Book_Book_Id`) " +
                 "REFERENCES `Book` (`Book_Id`) " +
-                "ON DELETE NO ACTION " +
-                "ON UPDATE NO ACTION)" +
+                "ON DELETE CASCADE " +
+                "ON UPDATE CASCADE)" +
                 "ENGINE = InnoDB"
             };
             
