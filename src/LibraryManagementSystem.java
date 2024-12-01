@@ -1,11 +1,17 @@
 import javax.swing.*;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableCellRenderer;
+
 import java.awt.*;
 import java.util.List;
 import java.util.ArrayList;
 import java.sql.*;
 import java.time.LocalDate;
 import java.util.Vector;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.jdesktop.swingx.autocomplete.AutoCompleteDecorator;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -51,7 +57,45 @@ public class LibraryManagementSystem extends JFrame {
         authorComboBook = new JComboBox<>();
         bookComboCopy = new JComboBox<>();
     }
+    private void initializeGUI() {
+        setTitle("Library Management System");
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setSize(800, 600);
+        setLocationRelativeTo(null);
 
+        JTabbedPane tabbedPane = new JTabbedPane();
+
+        // Add tabs
+        tabbedPane.addTab("Add", createAddPanel());
+        tabbedPane.addTab("Borrow Book", createBorrowPanel());
+        tabbedPane.addTab("Return Book", createReturnPanel());
+        tabbedPane.addTab("Borrowed Books", createBorrowedBooksPanel());
+        tabbedPane.addTab("Search 🔍", createSearchPanel());
+        tabbedPane.addTab("Update/Delete", createUpdateDeletePanel());
+
+        // Create a panel with a background image
+        JPanel backgroundPanel = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                if (backgroundImage != null) {
+                    g.drawImage(backgroundImage, 0, 0, getWidth(), getHeight(), this);
+                }
+            }
+        };
+        backgroundPanel.add(tabbedPane, BorderLayout.CENTER);
+
+        setContentPane(backgroundPanel);
+
+        // Decorate combo boxes with auto-complete
+        AutoCompleteDecorator.decorate(memberComboBorrow);
+        AutoCompleteDecorator.decorate(bookComboBorrowSpecific);
+        AutoCompleteDecorator.decorate(bookCopyComboBorrowSpecific);
+        AutoCompleteDecorator.decorate(memberComboReturn);
+        AutoCompleteDecorator.decorate(bookCopyComboReturn);
+        AutoCompleteDecorator.decorate(authorComboBook);
+        AutoCompleteDecorator.decorate(bookComboCopy);
+    }
     private void refreshComboBoxes() {
         try {
             // Refresh member combo box for borrowing
@@ -113,7 +157,7 @@ public class LibraryManagementSystem extends JFrame {
         JPanel panel = new JPanel(new BorderLayout());
 
         // Create JTable to display borrowed books
-        String[] columnNames = {"Member Name", "Book Title", "Borrow Date", "Due Date", "Status"};
+        String[] columnNames = {"Copy ID", "Member Name", "Book Title", "Borrow Date", "Due Date", "Status"};
         DefaultTableModel tableModel = new DefaultTableModel(columnNames, 0);
         JTable borrowedBooksTable = new JTable(tableModel);
         JScrollPane tableScrollPane = new JScrollPane(borrowedBooksTable);
@@ -125,13 +169,15 @@ public class LibraryManagementSystem extends JFrame {
 
         refreshButton.addActionListener(e -> {
             try {
-                String query = "SELECT m.First_name, m.Last_name, b.Title, " +
-                               "bc.Borrow_date, bc.Return_date, bc.Status " +
-                               "FROM Book_copy bc " +
-                               "JOIN Book b ON bc.Book_Id = b.Book_Id " +
-                               "JOIN Member m ON bc.Borrower_Id = m.Member_Id " +
-                               "WHERE bc.Status = 'BORROWED' " +
-                               "ORDER BY bc.Borrow_date DESC";
+                String query = """
+                        SELECT bc.Copy_Id, m.First_name, m.Last_name, b.Title, 
+                               bc.Borrow_date, bc.Return_date, bc.Status 
+                        FROM Book_copy bc
+                        JOIN Book b ON bc.Book_Id = b.Book_Id
+                        JOIN Member m ON bc.Borrower_Id = m.Member_Id
+                        WHERE bc.Status = 'BORROWED'
+                        ORDER BY bc.Borrow_date DESC
+                        """;
 
                 Statement stmt = conn.createStatement();
                 ResultSet rs = stmt.executeQuery(query);
@@ -141,12 +187,15 @@ public class LibraryManagementSystem extends JFrame {
 
                 // Add results to table
                 while (rs.next()) {
+                    int copyId = rs.getInt("Copy_Id");
                     String memberName = rs.getString("First_name") + " " + rs.getString("Last_name");
                     String bookTitle = rs.getString("Title");
                     Date borrowDate = rs.getDate("Borrow_date");
                     Date dueDate = rs.getDate("Return_date");
                     String status = rs.getString("Status");
-                    tableModel.addRow(new Object[]{memberName, bookTitle, borrowDate, dueDate, status});
+
+                    // Add row to table with Copy ID
+                    tableModel.addRow(new Object[]{copyId, memberName, bookTitle, borrowDate, dueDate, status});
                 }
 
             } catch (SQLException ex) {
@@ -154,8 +203,42 @@ public class LibraryManagementSystem extends JFrame {
             }
         });
 
+        // Custom cell renderer for overdue highlighting
+        borrowedBooksTable.setDefaultRenderer(Object.class, (TableCellRenderer) new DefaultTableCellRenderer() {
+            @SuppressWarnings("deprecation")
+			public Component getTableCellRendererComponent(JTable table, Object value, 
+                    boolean isSelected, boolean hasFocus, int row, int column) {
+                Component cell = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+
+                // Get the "Due Date" column value (column index 4, as "Copy ID" is now index 0)
+                Object dueDateValue = table.getValueAt(row, 4);
+                if (dueDateValue instanceof Date dueDate) {
+                    // If overdue, set background to red
+                    if (dueDate.before(new Date(column, column, column))) {
+                        cell.setBackground(Color.RED);
+                        cell.setForeground(Color.WHITE);
+                    } else {
+                        cell.setBackground(Color.WHITE); // Default background
+                        cell.setForeground(Color.BLACK);
+                    }
+                } else {
+                    cell.setBackground(Color.WHITE); // Default for non-date cells
+                    cell.setForeground(Color.BLACK);
+                }
+
+                return cell;
+            }
+        });
+
         return panel;
     }
+
+    
+    
+    
+    
+    
+    
 
     private void initializeDatabase() {
         try {
@@ -219,7 +302,7 @@ public class LibraryManagementSystem extends JFrame {
                 "`Borrower_Id` INT NULL," +
                 "`Borrow_date` DATE NULL," +
                 "`Return_date` DATE NULL," +
-                "`Status` ENUM('AVAILABLE', 'BORROWED') DEFAULT 'AVAILABLE'," +
+                "`Status` ENUM('AVAILABLE', 'BORROWED', 'LOST') DEFAULT 'AVAILABLE'," +
                 "PRIMARY KEY (`Copy_Id`, `Book_Id`)," +
                 "INDEX `fk_Book_copy_Book1_idx` (`Book_Id` ASC)," +
                 "INDEX `fk_Book_copy_Member1_idx` (`Borrower_Id` ASC)," +
@@ -292,45 +375,7 @@ public class LibraryManagementSystem extends JFrame {
         return panel;
     }
 
-    private void initializeGUI() {
-        setTitle("Library Management System");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(800, 600);
-        setLocationRelativeTo(null);
-
-        JTabbedPane tabbedPane = new JTabbedPane();
-
-        // Add tabs
-        tabbedPane.addTab("Add", createAddPanel());
-        tabbedPane.addTab("Borrow Book", createBorrowPanel());
-        tabbedPane.addTab("Return Book", createReturnPanel());
-        tabbedPane.addTab("Borrowed Books", createBorrowedBooksPanel());
-        tabbedPane.addTab("Search", createSearchPanel());
-        tabbedPane.addTab("Update/Delete", createUpdateDeletePanel());
-
-        // Create a panel with a background image
-        JPanel backgroundPanel = new JPanel(new BorderLayout()) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                if (backgroundImage != null) {
-                    g.drawImage(backgroundImage, 0, 0, getWidth(), getHeight(), this);
-                }
-            }
-        };
-        backgroundPanel.add(tabbedPane, BorderLayout.CENTER);
-
-        setContentPane(backgroundPanel);
-
-        // Decorate combo boxes with auto-complete
-        AutoCompleteDecorator.decorate(memberComboBorrow);
-        AutoCompleteDecorator.decorate(bookComboBorrowSpecific);
-        AutoCompleteDecorator.decorate(bookCopyComboBorrowSpecific);
-        AutoCompleteDecorator.decorate(memberComboReturn);
-        AutoCompleteDecorator.decorate(bookCopyComboReturn);
-        AutoCompleteDecorator.decorate(authorComboBook);
-        AutoCompleteDecorator.decorate(bookComboCopy);
-    }
+   
     
     private JPanel createBookPanel() {
         JPanel panel = new JPanel(new GridBagLayout());
@@ -808,34 +853,38 @@ public class LibraryManagementSystem extends JFrame {
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
-        
+
+        // Make sure combo boxes are populated correctly
         refreshComboBoxes();
-        
+
+        // Adding labels and combo boxes to the panel
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Select Member:"), gbc);
         gbc.gridx = 1;
         panel.add(memberComboBorrow, gbc);
-        
+
         gbc.gridx = 0; gbc.gridy = 1;
         panel.add(new JLabel("Select Book:"), gbc);
         gbc.gridx = 1;
         panel.add(bookComboBorrowSpecific, gbc);
-        
+
         gbc.gridx = 0; gbc.gridy = 2;
         panel.add(new JLabel("Select Copy:"), gbc);
         gbc.gridx = 1;
         panel.add(bookCopyComboBorrowSpecific, gbc);
-        
+
+        // Borrow Button
         JButton borrowButton = new JButton("Borrow Book");
         gbc.gridx = 0; gbc.gridy = 3;
         gbc.gridwidth = 2;
         panel.add(borrowButton, gbc);
 
+        // Action Listener for book selection to populate available copies
         bookComboBorrowSpecific.addActionListener(e -> {
             bookCopyComboBorrowSpecific.removeAllItems();
             String selectedBook = (String) bookComboBorrowSpecific.getSelectedItem();
             if (selectedBook != null) {
-                int bookId = Integer.parseInt(selectedBook.split(" - ")[1]);
+                int bookId = Integer.parseInt(selectedBook.split(" - ")[1]);  // Extract Book ID
                 try {
                     PreparedStatement stmt = conn.prepareStatement(
                         "SELECT Copy_Id, Print_date FROM Book_copy WHERE Book_Id = ? AND Status = 'AVAILABLE'"
@@ -843,10 +892,11 @@ public class LibraryManagementSystem extends JFrame {
                     stmt.setInt(1, bookId);
                     ResultSet rs = stmt.executeQuery();
                     while (rs.next()) {
+                        // Add available copies to the combo box
                         bookCopyComboBorrowSpecific.addItem("Copy ID: " + rs.getInt("Copy_Id") + " (Print Date: " + rs.getDate("Print_date") + ")");
                     }
                 } catch (SQLException ex) {
-                    ex.printStackTrace();
+                    JOptionPane.showMessageDialog(this, "Error retrieving book copies: " + ex.getMessage());
                 }
             }
         });
@@ -857,16 +907,22 @@ public class LibraryManagementSystem extends JFrame {
                 String bookSelection = (String) bookComboBorrowSpecific.getSelectedItem();
                 String copySelection = (String) bookCopyComboBorrowSpecific.getSelectedItem();
 
+                // Check if all selections are made
                 if (memberSelection == null || bookSelection == null || copySelection == null) {
-                    JOptionPane.showMessageDialog(this, "Please select member, book, and copy");
+                    JOptionPane.showMessageDialog(this, "Please select member, book, and copy.");
                     return;
                 }
 
-                // Get member ID
-                int memberId = Integer.parseInt(memberSelection.split(" - ")[1]);
+                // Get Member ID
+                int memberId = Integer.parseInt(memberSelection.split(" - ")[1]);  // Extract Member ID
 
-                // Get book copy ID
-                int copyId = Integer.parseInt(copySelection.split(" ")[2]);
+                // Extract Copy ID from the selected item using regex
+                int copyId = extractCopyId(copySelection);
+
+                if (copyId == -1) {
+                    JOptionPane.showMessageDialog(this, "Invalid Copy ID format.");
+                    return;
+                }
 
                 // Check if member has any overdue books
                 PreparedStatement overdueStmt = conn.prepareStatement(
@@ -880,7 +936,7 @@ public class LibraryManagementSystem extends JFrame {
                     return;
                 }
 
-                // Update book copy
+                // Update Book Copy to indicate it's borrowed
                 PreparedStatement updateStmt = conn.prepareStatement(
                     "UPDATE Book_copy SET Borrower_Id = ?, Borrow_date = CURRENT_DATE, " +
                     "Return_date = DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY), Status = 'BORROWED' " +
@@ -898,7 +954,19 @@ public class LibraryManagementSystem extends JFrame {
         });
 
         return panel;
+    }private int extractCopyId(String copySelection) {
+        // Regular expression to extract Copy ID
+        Pattern pattern = Pattern.compile("Copy ID: (\\d+)"); // Match "Copy ID: <id>"
+        Matcher matcher = pattern.matcher(copySelection);
+        
+        if (matcher.find()) {
+            // Return the Copy ID as integer if matched
+            return Integer.parseInt(matcher.group(1));
+        } else {
+            return -1; // Return -1 if no match found
+        }
     }
+
     
     private JPanel createReturnPanel() {
         JPanel panel = new JPanel(new GridBagLayout());
@@ -1156,7 +1224,7 @@ public class LibraryManagementSystem extends JFrame {
                 if ("Author".equals(selectedEntity)) {
                     rs = stmt.executeQuery("SELECT Author_Id, First_name, Last_name FROM Author");
                     while (rs.next()) {
-                        itemCombo.addItem(rs.getString("First_name") + " " + rs.getString("Last_name") + " - " + rs.getInt("Author_Id"));
+                        itemCombo.addItem(rs.getString("First_name") + " " + rs.getString("last_name") + " - " + rs.getInt("Author_Id"));
                     }
                 } else if ("Book".equals(selectedEntity)) {
                     rs = stmt.executeQuery("SELECT Book_Id, Title FROM Book");
@@ -1166,7 +1234,7 @@ public class LibraryManagementSystem extends JFrame {
                 } else if ("Member".equals(selectedEntity)) {
                     rs = stmt.executeQuery("SELECT Member_Id, First_name, Last_name FROM Member");
                     while (rs.next()) {
-                        itemCombo.addItem(rs.getString("First_name") + " " + rs.getString("Last_name") + " - " + rs.getInt("Member_Id"));
+                        itemCombo.addItem(rs.getString("First_name") + " " + rs.getString("last_name") + " - " + rs.getInt("Member_Id"));
                     }
                 } else if ("Book Copy".equals(selectedEntity)) {
                     rs = stmt.executeQuery("SELECT Book_Id, Title FROM Book");
@@ -1186,12 +1254,12 @@ public class LibraryManagementSystem extends JFrame {
                 int bookId = Integer.parseInt(selectedBook.split(" - ")[1]);
                 try {
                     PreparedStatement stmt = conn.prepareStatement(
-                        "SELECT Copy_Id, Print_date FROM Book_copy WHERE Book_Id = ?"
+                        "SELECT Copy_Id, Print_date, Status FROM Book_copy WHERE Book_Id = ?"
                     );
                     stmt.setInt(1, bookId);
                     ResultSet rs = stmt.executeQuery();
                     while (rs.next()) {
-                        itemCombo.addItem("Copy ID: " + rs.getInt("Copy_Id") + " (Print Date: " + rs.getDate("Print_date") + ")");
+                        itemCombo.addItem("Copy ID: " + rs.getInt("Copy_Id") + " (Print Date: " + rs.getDate("Print_date") + ", Status: " + rs.getString("Status") + ")");
                     }
                 } catch (SQLException ex) {
                     ex.printStackTrace();
@@ -1206,7 +1274,10 @@ public class LibraryManagementSystem extends JFrame {
                 JOptionPane.showMessageDialog(panel, "Please select an item to update.");
                 return;
             }
-            int id = Integer.parseInt(selectedItem.split(" ")[2]);
+
+            // Parse ID from selected item safely
+            int id = getIdFromSelection(selectedItem);
+
             switch (entity) {
                 case "Author":
                     updateAuthor(id);
@@ -1221,6 +1292,8 @@ public class LibraryManagementSystem extends JFrame {
                     updateBookCopy(id);
                     break;
             }
+
+            refreshComboBoxes();  // Ensure that combo boxes are refreshed after the update
         });
 
         deleteButton.addActionListener(e -> {
@@ -1230,26 +1303,65 @@ public class LibraryManagementSystem extends JFrame {
                 JOptionPane.showMessageDialog(panel, "Please select an item to delete.");
                 return;
             }
-            int id = Integer.parseInt(selectedItem.split(" ")[2]);
-            switch (entity) {
-                case "Author":
-                    deleteAuthor(id);
-                    break;
-                case "Book":
-                    deleteBook(id);
-                    break;
-                case "Member":
-                    deleteMember(id);
-                    break;
-                case "Book Copy":
-                    deleteBookCopy(id);
-                    break;
+
+            // Parse ID from selected item safely
+            int id = getIdFromSelection(selectedItem);
+
+            int result = JOptionPane.showConfirmDialog(panel, 
+                "Are you sure you want to delete this " + entity + "?", 
+                "Confirm Deletion", JOptionPane.YES_NO_OPTION);
+
+            if (result == JOptionPane.YES_OPTION) {
+                switch (entity) {
+                    case "Author":
+                        deleteAuthor(id);
+                        break;
+                    case "Book":
+                        deleteBook(id);
+                        break;
+                    case "Member":
+                        deleteMember(id);
+                        break;
+                    case "Book Copy":
+                        deleteBookCopy(id);
+                        break;
+                }
+                refreshComboBoxes();
             }
-            refreshComboBoxes();
         });
 
         return panel;
     }
+
+
+    private int getIdFromSelection(String selectedItem) {
+        String[] parts = selectedItem.split(" - ");
+        if (selectedItem != null && selectedItem.startsWith("Copy ID:")) {
+        	 try {
+                 // Extract the ID from the part before the parentheses
+                 String idPart = selectedItem.split(" ")[2];  // Splitting the string by space and picking the ID part
+                 return Integer.parseInt(idPart);  // Return the extracted ID
+             } catch (NumberFormatException ex) {
+                 JOptionPane.showMessageDialog(this, "Error parsing ID from selection: " + ex.getMessage());
+                 return -1;  // Return an invalid ID to prevent further operations
+             }
+        }
+        if (parts.length == 2) {
+            try {
+                return Integer.parseInt(parts[1].trim()); // Get the ID after the " - "
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this, "Error parsing ID from selection: " + ex.getMessage());
+                return -1; // Return an invalid ID to prevent further operations
+            }
+        } else {
+            JOptionPane.showMessageDialog(this, "Invalid selection format.");
+            return -1; // Invalid format, return a dummy ID
+        }
+    }
+
+   
+
+
 
     private void updateAuthor(int id) {
         try {
@@ -1385,6 +1497,8 @@ public class LibraryManagementSystem extends JFrame {
     }
 
     
+    
+    
     private void updateMember(int id) {
         try {
             // Check if the member exists and retrieve current details
@@ -1467,8 +1581,13 @@ public class LibraryManagementSystem extends JFrame {
 
     
     private void updateBookCopy(int id) {
+        if (id == -1) {
+            JOptionPane.showMessageDialog(this, "Invalid Book Copy ID.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
         try {
-            // Check if the book copy exists
+            // Check if the book copy exists before updating
             PreparedStatement checkStmt = conn.prepareStatement(
                 "SELECT Copy_Id, Print_date, Status FROM Book_copy WHERE Copy_Id = ?"
             );
@@ -1476,7 +1595,7 @@ public class LibraryManagementSystem extends JFrame {
             ResultSet rs = checkStmt.executeQuery();
 
             if (!rs.next()) {
-                JOptionPane.showMessageDialog(this, "Book copy not found!");
+                JOptionPane.showMessageDialog(this, "Book copy with ID " + id + " not found!");
                 return;
             }
 
@@ -1486,7 +1605,7 @@ public class LibraryManagementSystem extends JFrame {
 
             // Input fields pre-filled with current data
             JTextField printDateField = new JTextField(currentPrintDate, 20);
-            JComboBox<String> statusCombo = new JComboBox<>(new String[]{"AVAILABLE", "BORROWED"});
+            JComboBox<String> statusCombo = new JComboBox<>(new String[]{"AVAILABLE", "BORROWED", "LOST"});
             statusCombo.setSelectedItem(currentStatus);
 
             // Set up the panel for input
@@ -1508,26 +1627,38 @@ public class LibraryManagementSystem extends JFrame {
             int result = JOptionPane.showConfirmDialog(this, panel, "Update Book Copy", JOptionPane.OK_CANCEL_OPTION);
             if (result == JOptionPane.OK_OPTION) {
                 try {
+                    // Validate and parse the date correctly
+                    String printDateText = printDateField.getText();
+                    if (!printDateText.matches("\\d{4}-\\d{2}-\\d{2}")) { // Simple check for format
+                        JOptionPane.showMessageDialog(this, "Invalid date format. Please use YYYY-MM-DD.", "Input Error", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+
                     // Update the book copy with new values
                     PreparedStatement stmt = conn.prepareStatement(
                         "UPDATE Book_copy SET Print_date = ?, Status = ? WHERE Copy_Id = ?"
                     );
-                    stmt.setDate(1, Date.valueOf(printDateField.getText()));
-                    stmt.setString(2, (String) statusCombo.getSelectedItem());
-                    stmt.setInt(3, id);
+                    stmt.setDate(1, Date.valueOf(printDateText)); // Convert to Date type
+                    stmt.setString(2, (String) statusCombo.getSelectedItem()); // Status
+                    stmt.setInt(3, id); // Copy ID
                     stmt.executeUpdate();
+
                     JOptionPane.showMessageDialog(this, "Book copy updated successfully!");
-                    refreshComboBoxes();
+                    refreshComboBoxes(); // Refresh combo boxes after updating
+                    
                 } catch (SQLException ex) {
-                    JOptionPane.showMessageDialog(this, "Error updating book copy: " + ex.getMessage());
+                    JOptionPane.showMessageDialog(this, "Error updating book copy: " + ex.getMessage(), "SQL Error", JOptionPane.ERROR_MESSAGE);
+                } catch (IllegalArgumentException ex) {
+                    JOptionPane.showMessageDialog(this, "Error: check information integrity", "Input Error", JOptionPane.ERROR_MESSAGE);
                 }
             }
         } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "Error retrieving book copy details: " + ex.getMessage());
-        } catch (IllegalArgumentException ee) {
-            JOptionPane.showMessageDialog(this, "Error updating: check information integrity", "Input Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Error retrieving book copy details: " + ex.getMessage(), "SQL Error", JOptionPane.ERROR_MESSAGE);
         }
     }
+
+
+
 
     private void deleteAuthor(int id) {
         try {
@@ -1571,7 +1702,6 @@ public class LibraryManagementSystem extends JFrame {
         }
     }
 
-    
     private void deleteBook(int id) {
         try {
             // Check if the book exists and retrieve details
@@ -1622,8 +1752,12 @@ public class LibraryManagementSystem extends JFrame {
     }
 
     
+
     private void deleteMember(int id) {
         try {
+            // Start transaction
+            conn.setAutoCommit(false);
+            
             // Check if the member exists and retrieve details
             PreparedStatement checkStmt = conn.prepareStatement(
                 "SELECT First_name, Last_name, Email, Phone_number FROM Member WHERE Member_Id = ?"
@@ -1653,34 +1787,50 @@ public class LibraryManagementSystem extends JFrame {
             );
 
             if (result == JOptionPane.YES_OPTION) {
-                // Set the status of borrowed books to "LOST"
+                // Step 1: Update the status of any borrowed books to "LOST"
                 PreparedStatement updateBooksStmt = conn.prepareStatement(
                     "UPDATE Book_copy SET Status = 'LOST' WHERE Borrower_Id = ? AND Status = 'BORROWED'"
                 );
                 updateBooksStmt.setInt(1, id);
                 updateBooksStmt.executeUpdate();
 
-                // Delete the library card associated with the member
-                PreparedStatement cardStmt = conn.prepareStatement(
+                // Step 2: Delete the library card associated with the member
+                PreparedStatement deleteCardStmt = conn.prepareStatement(
                     "DELETE FROM Library_card WHERE Card_Id = (SELECT Library_card_Id FROM Member WHERE Member_Id = ?)"
                 );
-                cardStmt.setInt(1, id);
-                cardStmt.executeUpdate();
+                deleteCardStmt.setInt(1, id);
+                deleteCardStmt.executeUpdate();
 
-                // Delete the member
-                PreparedStatement memberStmt = conn.prepareStatement(
+                // Step 3: Delete the member record
+                PreparedStatement deleteMemberStmt = conn.prepareStatement(
                     "DELETE FROM Member WHERE Member_Id = ?"
                 );
-                memberStmt.setInt(1, id);
-                memberStmt.executeUpdate();
+                deleteMemberStmt.setInt(1, id);
+                deleteMemberStmt.executeUpdate();
 
+                // Commit the transaction
+                conn.commit();
                 JOptionPane.showMessageDialog(this, "Member and associated library card deleted successfully!");
                 refreshComboBoxes();
             }
+
         } catch (SQLException ex) {
+            try {
+                // Rollback the transaction in case of error
+                conn.rollback();
+            } catch (SQLException rollbackEx) {
+                JOptionPane.showMessageDialog(this, "Error rolling back transaction: " + rollbackEx.getMessage());
+            }
             JOptionPane.showMessageDialog(this, "Error deleting member: " + ex.getMessage());
+        } finally {
+            try {
+                conn.setAutoCommit(true);  // Restore auto-commit
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+            }
         }
     }
+
 
     private void deleteBookCopy(int id) {
         try {
@@ -1723,9 +1873,29 @@ public class LibraryManagementSystem extends JFrame {
         }
     }
 
+
+
+
+    
+    
+    
+    // ========================= MAIN ==========================
     
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             try {
                 Class.forName("com.mysql.cj.jdbc.Driver");
-                new LibraryManagementSystem().setVisible(true);            } catch (ClassNotFoundException e) {                JOptionPane.showMessageDialog(null, "MySQL JDBC Driver not found!");                System.exit(1);            }        });    }}
+                new LibraryManagementSystem().setVisible(true);            }
+            catch (ClassNotFoundException e) {         
+            	JOptionPane.showMessageDialog(null, "MySQL JDBC Driver not found!");                System.exit(1);            }      
+            });    }}
+
+
+
+
+
+
+
+
+
+
