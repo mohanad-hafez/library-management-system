@@ -66,12 +66,12 @@ public class LibraryManagementSystem extends JFrame {
         JTabbedPane tabbedPane = new JTabbedPane();
 
         // Add tabs
-        tabbedPane.addTab("Add", createAddPanel());
-        tabbedPane.addTab("Borrow Book", createBorrowPanel());
-        tabbedPane.addTab("Return Book", createReturnPanel());
-        tabbedPane.addTab("Borrowed Books", createBorrowedBooksPanel());
+        tabbedPane.addTab("Add ➕", createAddPanel());
+        tabbedPane.addTab("Borrow Book 🤝", createBorrowPanel());
+        tabbedPane.addTab("Return Book ↩️", createReturnPanel());
+        tabbedPane.addTab("Borrowed Books ✔️", createBorrowedBooksPanel());
         tabbedPane.addTab("Search 🔍", createSearchPanel());
-        tabbedPane.addTab("Update/Delete", createUpdateDeletePanel());
+        tabbedPane.addTab("Update/Delete 🗑️", createUpdateDeletePanel());
 
         // Create a panel with a background image
         JPanel backgroundPanel = new JPanel(new BorderLayout()) {
@@ -357,10 +357,10 @@ public class LibraryManagementSystem extends JFrame {
     
     private JPanel createAddPanel() {
         JTabbedPane addTabbedPane = new JTabbedPane();
-        addTabbedPane.addTab("Add Book", createBookPanel());
-        addTabbedPane.addTab("Add Member", createMemberPanel());
-        addTabbedPane.addTab("Add Author", createAuthorPanel());
-        addTabbedPane.addTab("Add Copy", createCopyPanel());
+        addTabbedPane.addTab("Add Book 📚", createBookPanel());
+        addTabbedPane.addTab("Add Member 👤", createMemberPanel());
+        addTabbedPane.addTab("Add Author 🖌", createAuthorPanel());
+        addTabbedPane.addTab("Add Copy 📖", createCopyPanel());
 
         JPanel panel = new JPanel(new BorderLayout()) {
             @Override
@@ -1885,10 +1885,12 @@ public class LibraryManagementSystem extends JFrame {
         SwingUtilities.invokeLater(() -> {
             try {
                 Class.forName("com.mysql.cj.jdbc.Driver");
-                new LibraryManagementSystem().setVisible(true);            }
-            catch (ClassNotFoundException e) {         
-            	JOptionPane.showMessageDialog(null, "MySQL JDBC Driver not found!");                System.exit(1);            }      
-            });    }}
+                new LibraryManagementSystem().setVisible(true);
+                }catch (ClassNotFoundException e) {         
+            	JOptionPane.showMessageDialog(null, "MySQL JDBC Driver not found!");      System.exit(1);    }      
+            });    
+        }
+    }
 
 
 
