@@ -5,13 +5,11 @@ import javax.swing.table.TableCellRenderer;
 
 import java.awt.*;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.ArrayList;
 import java.sql.*;
 import java.time.LocalDate;
-import java.util.Vector;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import org.jdesktop.swingx.autocomplete.AutoCompleteDecorator;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -20,8 +18,6 @@ import javax.imageio.ImageIO;
 public class LibraryManagementSystem extends JFrame {
     private Connection conn;
     private JComboBox<String> memberComboBorrow;
-    private JComboBox<String> bookComboBorrow;
-    private JComboBox<String> bookCopyComboBorrow;
     private JComboBox<String> bookComboBorrowSpecific;
     private JComboBox<String> bookCopyComboBorrowSpecific;
     private JComboBox<String> memberComboReturn;
@@ -48,9 +44,7 @@ public class LibraryManagementSystem extends JFrame {
 
     private void initializeComboBoxes() {
         memberComboBorrow = new JComboBox<>();
-        bookComboBorrow = new JComboBox<>();
         bookComboBorrowSpecific = new JComboBox<>();
-        bookCopyComboBorrow = new JComboBox<>();
         bookCopyComboBorrowSpecific = new JComboBox<>();
         memberComboReturn = new JComboBox<>();
         bookCopyComboReturn = new JComboBox<>();
@@ -113,12 +107,14 @@ public class LibraryManagementSystem extends JFrame {
                 bookComboBorrowSpecific.addItem(rs.getString("Title") + " - " + rs.getInt("Book_Id"));
             }
 
+
+
             // Refresh book copy combo box for borrowing
             bookCopyComboBorrowSpecific.removeAllItems();
-            rs = stmt.executeQuery("SELECT Copy_Id, Title, Print_date FROM Book_copy JOIN Book ON Book_copy.Book_Id = Book.Book_Id WHERE Status = 'AVAILABLE'");
-            while (rs.next()) {
-                bookCopyComboBorrowSpecific.addItem(rs.getString("Title") + " - " + rs.getInt("Copy_Id") + " (Print Date: " + rs.getDate("Print_date") + ")");
-            }
+            // rs = stmt.executeQuery("SELECT Copy_Id, Title, Print_date FROM Book_copy JOIN Book ON Book_copy.Book_Id = Book.Book_Id WHERE Status = 'AVAILABLE'");
+            // while (rs.next()) {
+            //     bookCopyComboBorrowSpecific.addItem(rs.getString("Title") + " - " + rs.getInt("Copy_Id") + " (Print Date: " + rs.getDate("Print_date") + ")");
+            // }
 
             // Refresh member combo box for returning
             memberComboReturn.removeAllItems();
@@ -955,7 +951,17 @@ public class LibraryManagementSystem extends JFrame {
 
         return panel;
     }private int extractCopyId(String copySelection) {
-        return Integer.parseInt(copySelection.split(" - ")[1].split(" ")[0]); // Extract Copy ID from the selected item
+        //return Integer.parseInt(copySelection.split(" - ")[1].split(" ")[0]); // Extract Copy ID from the selected item
+        // Regular expression to extract Copy ID
+        Pattern pattern = Pattern.compile("Copy ID: (\\d+)"); // Match "Copy ID: <id>"
+        Matcher matcher = pattern.matcher(copySelection);
+        
+        if (matcher.find()) {
+            // Return the Copy ID as integer if matched
+            return Integer.parseInt(matcher.group(1));
+        } else {
+            return -1; // Return -1 if no match found
+        }
     }
 
     
