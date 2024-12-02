@@ -955,16 +955,7 @@ public class LibraryManagementSystem extends JFrame {
 
         return panel;
     }private int extractCopyId(String copySelection) {
-        // Regular expression to extract Copy ID
-        Pattern pattern = Pattern.compile("Copy ID: (\\d+)"); // Match "Copy ID: <id>"
-        Matcher matcher = pattern.matcher(copySelection);
-        
-        if (matcher.find()) {
-            // Return the Copy ID as integer if matched
-            return Integer.parseInt(matcher.group(1));
-        } else {
-            return -1; // Return -1 if no match found
-        }
+        return Integer.parseInt(copySelection.split(" - ")[1].split(" ")[0]); // Extract Copy ID from the selected item
     }
 
     
